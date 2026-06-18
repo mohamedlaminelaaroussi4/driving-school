@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+    <title>تسجيل الحضور</title>
+    <link rel="stylesheet" href="static/css/style.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📍 تسجيل الحضور</h1>
+            <p class="subtitle">مدرسة أهل لمغيمظ لتعليم السياقة</p>
+
+            <div id="formDiv">
+                <label>الاسم الكامل *</label>
+                <input type="text" id="fullName" placeholder="أدخل اسمك كاملاً" required />
+
+                <label>رقم الهاتف *</label>
+                <input type="tel" id="phone" placeholder="0612345678" required />
+
+                <label>رقم التسجيل (اختياري)</label>
+                <input type="text" id="studentId" placeholder="S001" />
+
+                <button id="checkinBtn" class="btn-primary">✅ أنا هنا</button>
+            </div>
+
+            <div id="resultDiv" style="display:none;">
+                <div id="resultMessage" class="message"></div>
+                <button id="backBtn" class="btn-secondary">رجوع</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/public-api.js"></script>
+    <script>
+        // ──────────────────────────────────────────────
+        // Get session ID from URL
+        // ──────────────────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        if (!sessionId) {
+            document.getElementById('formDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى الاتصال بالإدارة.</div>';
+            document.getElementById('checkinBtn').disabled = true;
+        }
+
+        // ──────────────────────────────────────────────
+        // Check‑in
+        // ──────────────────────────────────────────────
+        document.getElementById('checkinBtn').addEventListener('click', async function() {
+            const fullName = document.getElementById('fullName').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const studentId = document.getElementById('studentId').value.trim();
+
+            if (!fullName || !phone) {
+                alert('الاسم والهاتف إلزاميان');
+                return;
+            }
+            if (!sessionId) {
+                alert('رابط غير صالح');
+                return;
+            }
+
+            this.disabled = true;
+            this.textContent = 'جاري التسجيل...';
+
+            try {
+                const result = await api.attendance.checkin(sessionId, fullName, phone, studentId);
+                if (result.success) {
+                    document.getElementById('formDiv').style.display = 'none';
+                    document.getElementById('resultDiv').style.display = 'block';
+                    document.getElementById('resultMessage').className = 'message success';
+                    document.getElementById('resultMessage').textContent = '✅ تم تسجيل حضورك بنجاح!';
+                } else {
+                    alert('خطأ: ' + (result.error || 'حدث خطأ غير معروف'));
+                }
+            } catch (error) {
+                alert('خطأ في الاتصال: ' + error.message);
+            } finally {
+                this.disabled = false;
+                this.textContent = '✅ أنا هنا';
+            }
+        });
+
+        document.getElementById('backBtn').addEventListener('click', function() {
+            document.getElementById('formDiv').style.display = 'block';
+            document.getElementById('resultDiv').style.display = 'none';
+            document.getElementById('fullName').value = '';
+            document.getElementById('phone').value = '';
+            document.getElementById('studentId').value = '';
+        });
+    </script>
+</body>
+</html>

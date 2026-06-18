@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+    <title>الأسئلة المباشرة</title>
+    <link rel="stylesheet" href="static/css/style.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📝 الأسئلة المباشرة</h1>
+            <p class="subtitle">أجب على السؤال المطروح</p>
+
+            <div id="questionDiv">
+                <div id="currentQuestion" style="background:#f3f4f6; padding:1rem; border-radius:8px; margin:1rem 0;">
+                    <p style="font-weight:bold; color:#1e5f3a;">السؤال:</p>
+                    <p id="questionText">جارٍ تحميل السؤال...</p>
+                </div>
+
+                <label>إجابتك *</label>
+                <textarea id="answerText" rows="3" placeholder="اكتب إجابتك هنا..."></textarea>
+
+                <button id="submitAnswerBtn" class="btn-primary">📨 إرسال الإجابة</button>
+            </div>
+
+            <div id="resultDiv" style="display:none;">
+                <div id="resultMessage" class="message"></div>
+                <button id="backBtnQuestion" class="btn-secondary">رجوع</button>
+            </div>
+
+            <div id="sessionInfo" style="margin-top:1rem; font-size:0.9rem; color:#666;">
+                <p>رمز الجلسة: <span id="sessionCode" style="font-weight:bold; color:#e6a017;"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/public-api.js"></script>
+    <script>
+        // ──────────────────────────────────────────────
+        // Get session ID from URL
+        // ──────────────────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        if (!sessionId) {
+            document.getElementById('questionDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح.</div>';
+            document.getElementById('submitAnswerBtn').disabled = true;
+        } else {
+            document.getElementById('sessionCode').textContent = sessionId;
+            // Fetch current question (we'll use a simple poll every 10s, or just a static one)
+            loadQuestion();
+        }
+
+        // ──────────────────────────────────────────────
+        // Load question (simple polling)
+        // ──────────────────────────────────────────────
+        async function loadQuestion() {
+            try {
+                // We'll expect an endpoint /api/questions/current?session=...
+                // For now, use a static placeholder.
+                document.getElementById('questionText').textContent = 'ما هي أول خطوة عند قيادة السيارة؟';
+                // In production, call api.questions.getCurrent(sessionId)
+            } catch (e) {
+                document.getElementById('questionText').textContent = '⚠️ تعذر تحميل السؤال';
+            }
+        }
+        // Refresh question every 15 seconds (if needed)
+        setInterval(loadQuestion, 15000);
+
+        // ──────────────────────────────────────────────
+        // Submit answer
+        // ──────────────────────────────────────────────
+        document.getElementById('submitAnswerBtn').addEventListener('click', async function() {
+            const answer = document.getElementById('answerText').value.trim();
+            if (!answer) {
+                alert('الرجاء كتابة إجابتك');
+                return;
+            }
+            if (!sessionId) {
+                alert('رابط غير صالح');
+                return;
+            }
+
+            this.disabled = true;
+            this.textContent = 'جاري الإرسال...';
+
+            try {
+                const result = await api.questions.submit(sessionId, answer);
+                if (result.success) {
+                    document.getElementById('questionDiv').style.display = 'none';
+                    document.getElementById('resultDiv').style.display = 'block';
+                    document.getElementById('resultMessage').className = 'message success';
+                    document.getElementById('resultMessage').textContent = '✅ تم إرسال إجابتك بنجاح!';
+                } else {
+                    alert('خطأ: ' + (result.error || 'حدث خطأ'));
+                }
+            } catch (error) {
+                alert('خطأ في الاتصال: ' + error.message);
+            } finally {
+                this.disabled = false;
+                this.textContent = '📨 إرسال الإجابة';
+            }
+        });
+
+        document.getElementById('backBtnQuestion').addEventListener('click', function() {
+            document.getElementById('questionDiv').style.display = 'block';
+            document.getElementById('resultDiv').style.display = 'none';
+            document.getElementById('answerText').value = '';
+        });
+    </script>
+</body>
+</html>
