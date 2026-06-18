@@ -3,14 +3,55 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>تسجيل الحضور والأسئلة</title>
-    <meta http-equiv="refresh" content="0;url=attendance_checkin.html" />
+    <title>مدرسة أهل لمغيمظ</title>
+    <link rel="stylesheet" href="static/css/style.css" />
+    <style>
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .btn-large {
+            display: block;
+            padding: 1rem;
+            text-align: center;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 1.1rem;
+            transition: background 0.2s;
+        }
+        .btn-large:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        .btn-large .icon { font-size: 2rem; display: block; margin-bottom: 0.3rem; }
+    </style>
 </head>
-<body style="background: #1e5f3a; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0;">
-    <div style="text-align:center;">
-        <h2>🏫 مدرسة أهل لمغيمظ</h2>
-        <p>جاري التوجيه إلى صفحة الحضور...</p>
-        <a href="attendance_checkin.html" style="color: #e6a017;">انقر هنا إذا لم يتم التوجيه تلقائياً</a>
+<body>
+    <div class="container">
+        <div class="card" style="text-align:center;">
+            <h1>🏫 مدرسة أهل لمغيمظ</h1>
+            <p class="subtitle">لتعليم السياقة</p>
+
+            <div class="buttons">
+                <a href="attendance.html" class="btn-large">
+                    <span class="icon">📍</span>
+                    تسجيل الحضور
+                </a>
+                <a href="question.html" class="btn-large">
+                    <span class="icon">📝</span>
+                    الإجابة على سؤال مباشر
+                </a>
+            </div>
+
+            <p style="color:#ccc; margin-top:2rem; font-size:0.9rem;">
+                يرجى مسح رمز QR الخاص بالجلسة للوصول المباشر
+            </p>
+        </div>
     </div>
 </body>
 </html>
