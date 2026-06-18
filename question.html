@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+    <title>السؤال المباشر</title>
+    <link rel="stylesheet" href="static/css/style.css" />
+    <style>
+        .timer {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #e6a017;
+            text-align: center;
+            margin: 0.5rem 0;
+        }
+        .timer.warning { color: #f87171; }
+        .question-box {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .question-box p { font-size: 1.2rem; line-height: 1.6; }
+        #answerInput {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+            background: rgba(255,255,255,0.85);
+        }
+        #submitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .message { padding: 0.8rem; border-radius: 8px; margin: 1rem 0; font-weight: 700; }
+        .message.success { background: rgba(74,222,128,0.2); color: #4ade80; }
+        .message.error { background: rgba(248,113,113,0.2); color: #f87171; }
+        .message.info { background: rgba(96,165,250,0.2); color: #60a5fa; }
+        .checkbox-group { margin: 0.5rem 0; }
+        .checkbox-group label { display: inline; color: #ccc; font-weight: normal; }
+        .checkbox-group input { width: auto; margin-left: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📝 السؤال</h1>
+
+            <div id="questionDiv">
+                <div class="timer" id="timerDisplay">60</div>
+                <div class="question-box">
+                    <p id="questionText">جارٍ تحميل السؤال...</p>
+                </div>
+
+                <label for="answerInput">إجابتك:</label>
+                <input type="text" id="answerInput" placeholder="اكتب إجابتك هنا..." />
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="useStudentId" /> لدي رقم تسجيل
+                    </label>
+                </div>
+                <div id="studentIdField" style="display:none; margin-top:0.5rem;">
+                    <label>رقم التسجيل</label>
+                    <input type="text" id="studentIdInput" placeholder="S001" />
+                </div>
+
+                <button id="submitBtn" class="btn-primary">📨 إرسال الإجابة</button>
+                <div id="resultMessage" class="message" style="display:none;"></div>
+            </div>
+
+            <div id="resultDiv" style="display:none;">
+                <div id="finalMessage" class="message"></div>
+                <button id="backBtn" class="btn-secondary">رجوع</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/api.js"></script>
+    <script>
+        // ──────────────────────────────────────────────
+        // Get session from URL
+        // ──────────────────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        if (!sessionId) {
+            document.getElementById('questionDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى الاتصال بالإدارة.</div>';
+            document.getElementById('submitBtn').disabled = true;
+        } else {
+            loadQuestion(sessionId);
+        }
+
+        document.getElementById('useStudentId').addEventListener('change', function() {
+            document.getElementById('studentIdField').style.display = this.checked ? 'block' : 'none';
+        });
+
+        let timerInterval = null;
+        let remainingSeconds = 60;
+
+        async function loadQuestion(sessionId) {
+            try {
+                const data = await api.questions.getCurrent(sessionId);
+                if (data.error) {
+                    document.getElementById('questionText').textContent = '⚠️ ' + data.error;
+                    document.getElementById('submitBtn').disabled = true;
+                    return;
+                }
+                document.getElementById('questionText').textContent = data.question;
+                remainingSeconds = data.remaining || data.duration || 60;
+                updateTimerDisplay();
+                startTimer(sessionId);
+            } catch (e) {
+                document.getElementById('questionText').textContent = '⚠️ تعذر تحميل السؤال';
+                console.error(e);
+            }
+        }
+
+        function startTimer(sessionId) {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                updateTimerDisplay();
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    document.getElementById('submitBtn').disabled = true;
+                    document.getElementById('timerDisplay').textContent = '⏰ انتهى الوقت';
+                    document.getElementById('timerDisplay').classList.add('warning');
+                    document.getElementById('resultMessage').style.display = 'block';
+                    document.getElementById('resultMessage').className = 'message error';
+                    document.getElementById('resultMessage').textContent = '⚠️ انتهى الوقت المخصص للإجابة';
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const el = document.getElementById('timerDisplay');
+            el.textContent = remainingSeconds + ' ثانية';
+            if (remainingSeconds <= 10) el.classList.add('warning');
+        }
+
+        // ──────────────────────────────────────────────
+        // Submit answer
+        // ──────────────────────────────────────────────
+        document.getElementById('submitBtn').addEventListener('click', async function() {
+            const answer = document.getElementById('answerInput').value.trim();
+            if (!answer) {
+                alert('الرجاء كتابة إجابتك');
+                return;
+            }
+
+            let fullName = localStorage.getItem('studentName') || '';
+            let phone = localStorage.getItem('studentPhone') || '';
+            if (!fullName || !phone) {
+                fullName = prompt('أدخل اسمك الكامل:');
+                phone = prompt('أدخل رقم هاتفك:');
+                if (!fullName || !phone) {
+                    alert('الاسم والهاتف مطلوبان');
+                    return;
+                }
+                localStorage.setItem('studentName', fullName);
+                localStorage.setItem('studentPhone', phone);
+            }
+
+            const studentId = document.getElementById('useStudentId').checked ? document.getElementById('studentIdInput').value.trim() : '';
+
+            this.disabled = true;
+            this.textContent = 'جاري الإرسال...';
+
+            try {
+                const result = await api.questions.submit(sessionId, fullName, phone, studentId, answer);
+                if (result.success) {
+                    clearInterval(timerInterval);
+                    document.getElementById('questionDiv').style.display = 'none';
+                    document.getElementById('resultDiv').style.display = 'block';
+                    document.getElementById('finalMessage').className = 'message success';
+                    document.getElementById('finalMessage').textContent = '✅ تم إرسال إجابتك بنجاح!';
+                } else {
+                    alert('خطأ: ' + (result.error || 'حدث خطأ'));
+                }
+            } catch (error) {
+                alert('خطأ في الاتصال: ' + error.message);
+            } finally {
+                this.disabled = false;
+                this.textContent = '📨 إرسال الإجابة';
+            }
+        });
+
+        document.getElementById('backBtn').addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>
