@@ -38,11 +38,24 @@ export async function onRequest(context) {
   }
 
   // 3. GET CURRENT QUESTION (Student Polling)
-  if (path === '/api/questions/current') {
-    const sessionId = url.searchParams.get('session');
-    const session = await db.get(`session:${sessionId}`);
-    return new Response(session || JSON.stringify({ status: 'waiting' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+if (path === '/api/questions/current') {
+  const sessionId = url.searchParams.get('session');
+  const session = await db.get(`session:${sessionId}`);
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Session not found' }), { 
+      status: 404, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
+  const data = JSON.parse(session);
+  // Return a consistent structure with status, duration, start_time
+  return new Response(JSON.stringify({
+    status: data.status || 'waiting',
+    duration: data.duration || 60,
+    start_time: data.start_time || null,
+    correct_answer: data.correct_answer || null
+  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
 
   // 4. SUBMIT ANSWER – store all fields
   if (path === '/api/questions/submit') {
