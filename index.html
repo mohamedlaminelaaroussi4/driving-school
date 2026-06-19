@@ -58,6 +58,7 @@
 
         .session-id-display { font-size: 0.8rem; color: #999; margin-top: 5px; }
         .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+        .debug-info { font-size: 0.7rem; color: #999; margin-top: 1rem; padding: 0.5rem; background: #f1f5f9; border-radius: 4px; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -133,6 +134,7 @@
             </div>
 
             <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
+            <div class="debug-info" id="debugInfo">⏳ جاري التحميل...</div>
         </div>
     </div>
 
@@ -145,16 +147,22 @@
             console.log('[Q] Session ID:', sessionId);
 
             let deviceFingerprint = '';
+            const debugEl = document.getElementById('debugInfo');
+
+            function debug(msg) {
+                debugEl.textContent = msg + '\n' + debugEl.textContent;
+                console.log('[Q]', msg);
+            }
 
             async function getFingerprint() {
                 try {
                     const fp = await FingerprintJS.load();
                     const result = await fp.get();
                     deviceFingerprint = result.visitorId;
-                    console.log('[Q] Fingerprint:', deviceFingerprint);
+                    debug('Fingerprint: ' + deviceFingerprint);
                 } catch (e) {
                     deviceFingerprint = 'unavailable';
-                    console.warn('[Q] Fingerprint error:', e);
+                    debug('Fingerprint error: ' + e.message);
                 }
             }
             getFingerprint();
@@ -163,10 +171,10 @@
                 try {
                     const res = await fetch('https://api.ipify.org?format=json');
                     const data = await res.json();
-                    console.log('[Q] IP:', data.ip);
+                    debug('IP: ' + data.ip);
                     return data.ip;
                 } catch (e) {
-                    console.warn('[Q] IP error:', e);
+                    debug('IP error: ' + e.message);
                     return 'unknown';
                 }
             }
@@ -174,10 +182,13 @@
             if (!sessionId) {
                 document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
                 document.getElementById('enterBtn').disabled = true;
+                debug('Invalid session ID');
                 return;
             }
             document.getElementById('displaySessionId').textContent = sessionId;
+            debug('Session ID: ' + sessionId);
 
+            // ─── DOM refs ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
             const studentIdInput = document.getElementById('studentIdInput');
@@ -254,6 +265,7 @@
             consentCheck.addEventListener('change', updateUI);
             updateUI();
 
+            // ─── Enter ────────────────────────────────────────────────────
             document.getElementById('enterBtn').addEventListener('click', async function() {
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
@@ -271,17 +283,28 @@
 
                 document.getElementById('loginDiv').style.display = 'none';
                 document.getElementById('waitingDiv').style.display = 'block';
+                debug('Entered waiting mode');
                 startPolling();
             });
 
             // ─── Polling ────────────────────────────────────────────────────
+            let pollInterval = null;
+            let lastStartTime = null;
+            let timerInterval = null;
+            let remainingSeconds = 0;
+            let currentAnswer = [];
+
             function startPolling() {
                 if (pollInterval) clearInterval(pollInterval);
                 pollInterval = setInterval(async () => {
                     try {
                         const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
-                        if (!response.ok) return;
+                        if (!response.ok) {
+                            debug('Poll response not OK: ' + response.status);
+                            return;
+                        }
                         const data = await response.json();
+                        debug('Poll response: ' + JSON.stringify(data));
 
                         if (data.status === 'active') {
                             const newStartTime = data.start_time;
@@ -290,25 +313,26 @@
                                 if (document.getElementById('questionDiv').style.display === 'none') {
                                     document.getElementById('waitingDiv').style.display = 'none';
                                     document.getElementById('questionDiv').style.display = 'block';
+                                    debug('Showing question');
                                 } else {
                                     resetUIForNewQuestion(data.duration || 60);
+                                    debug('Resetting for new question');
                                 }
                                 if (!timerInterval || remainingSeconds <= 0) {
                                     startTimer(data.duration || 60);
                                 }
                             }
+                        } else {
+                            debug('Status not active: ' + data.status);
                         }
                     } catch (e) {
+                        debug('Poll error: ' + e.message);
                         console.warn('Polling error:', e);
                     }
                 }, 2000);
             }
 
             // ─── Timer ──────────────────────────────────────────────────────
-            let remainingSeconds = 0;
-            let timerInterval = null;
-            let lastStartTime = null;
-
             function startTimer(duration) {
                 if (timerInterval) clearInterval(timerInterval);
                 remainingSeconds = duration;
@@ -321,8 +345,7 @@
                     if (remainingSeconds <= 10) timerDisplay.classList.add('warning');
                     if (remainingSeconds <= 0) {
                         clearInterval(timerInterval);
-                        const submitBtn = document.getElementById('submitBtn');
-                        submitBtn.disabled = true;
+                        document.getElementById('submitBtn').disabled = true;
                         const resultMessage = document.getElementById('resultMessage');
                         resultMessage.style.display = 'block';
                         resultMessage.className = 'message error';
@@ -332,6 +355,7 @@
             }
 
             function resetUIForNewQuestion(duration) {
+                currentAnswer = [];
                 document.getElementById('displayAnswer').textContent = '...';
                 document.getElementById('resultMessage').style.display = 'none';
                 document.getElementById('submitBtn').disabled = false;
@@ -339,8 +363,6 @@
             }
 
             // ─── Answer functions ──────────────────────────────────────────
-            let currentAnswer = [];
-
             function addNumber(num) {
                 if (currentAnswer.length < 4) {
                     currentAnswer.push(num);
@@ -353,7 +375,7 @@
                 document.getElementById('displayAnswer').textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
             }
 
-            // ─── Submit answer ─────────────────────────────────────────────
+            // ─── Submit ─────────────────────────────────────────────────────
             document.getElementById('submitBtn').addEventListener('click', async function() {
                 if (currentAnswer.length === 0) {
                     alert('الرجاء اختيار رقم واحد على الأقل');
@@ -384,6 +406,7 @@
                         })
                     });
                     const result = await response.json();
+                    debug('Submit response: ' + JSON.stringify(result));
                     if (result.success) {
                         clearInterval(timerInterval);
                         document.getElementById('questionDiv').style.display = 'none';
