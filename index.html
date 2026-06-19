@@ -68,6 +68,11 @@
             <div id="loginDiv">
                 <p class="instruction">مرحباً بك! يرجى إدخال بياناتك للمشاركة</p>
 
+                <!-- Session warning (only visible when missing) -->
+                <div id="sessionWarning" class="message error" style="display:none;">
+                    ⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.
+                </div>
+
                 <div class="form-group">
                     <label>الاسم الكامل (بالأحرف اللاتينية فقط، على الأقل 6 أحرف)</label>
                     <input type="text" id="nameInput" placeholder="Mohamed Ahmed" />
@@ -145,7 +150,7 @@
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
-        console.log('[Q] Session ID:', sessionId);
+        console.log('[Q] Session ID:', sessionId || 'missing');
 
         let deviceFingerprint = '';
 
@@ -196,6 +201,7 @@
         const submitBtn = document.getElementById('submitBtn');
         const resultMessage = document.getElementById('resultMessage');
         const finalMessage = document.getElementById('finalMessage');
+        const sessionWarning = document.getElementById('sessionWarning');
 
         let currentAnswer = [];
         let remainingSeconds = 0;
@@ -203,13 +209,17 @@
         let pollInterval = null;
         let lastStartTime = null;
 
-        // ─── Session check ─────────────────────────────────────────────
+        // ─── Handle missing session ────────────────────────────────────
         if (!sessionId) {
-            loginDiv.innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
-            enterBtn.disabled = true;
-            return;
+            sessionWarning.style.display = 'block';
+            enterBtn.disabled = true;             // stays disabled forever
+            enterBtn.classList.remove('ready');
+            displaySessionId.textContent = '---';
+            // Validation still works so the user sees the green/red feedback.
+            // We do NOT return – we let the rest of the script run.
+        } else {
+            displaySessionId.textContent = sessionId;
         }
-        displaySessionId.textContent = sessionId;
 
         // ─── Validation functions (exact same as attendance) ──────────
         function validateName() {
@@ -253,7 +263,8 @@
             const consentOk = consentCheck.checked;
             const allOk = nameOk && phoneOk && studentIdOk && consentOk;
 
-            if (allOk) {
+            // Only enable button if session exists and all fields are valid
+            if (allOk && sessionId) {
                 validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك الدخول';
                 validationStatus.className = 'validation-status ok';
                 enterBtn.disabled = false;
@@ -265,6 +276,7 @@
                 if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
                 if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
                 if (!consentOk) issues.push('الموافقة على جمع البيانات');
+                if (!sessionId) issues.push('الرابط (جلسة غير صالحة)');
                 validationStatus.textContent = msg + issues.join('، ');
                 validationStatus.className = 'validation-status fail';
                 enterBtn.disabled = true;
@@ -277,11 +289,15 @@
         phoneInput.addEventListener('input', updateUI);
         studentIdInput.addEventListener('input', updateUI);
         consentCheck.addEventListener('change', updateUI);
-        // Initial check to set correct state
-        updateUI();
+        updateUI();   // initial state
 
         // ─── Enter button ──────────────────────────────────────────────
         enterBtn.addEventListener('click', async function() {
+            // Double-check session existence
+            if (!sessionId) {
+                alert('الرابط غير صالح، لا يمكن المتابعة.');
+                return;
+            }
             const name = nameInput.value.trim();
             const phone = phoneInput.value.trim();
             const studentId = studentIdInput.value.trim();
@@ -303,6 +319,7 @@
 
         // ─── Polling ────────────────────────────────────────────────────
         function startPolling() {
+            if (!sessionId) return;
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(async () => {
                 try {
