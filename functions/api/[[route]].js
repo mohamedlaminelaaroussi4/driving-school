@@ -79,52 +79,35 @@ export async function onRequest(context) {
     }
 
     // GET RESULTS (Admin Dashboard)
+    // Inside your /results block in [[route]].js
     if (path.includes('/results')) {
       const parts = path.split('/');
       const sessionId = parts[4];
+      
+      // 1. Get Session Data
       const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
       
-      if (!sessionData) {
-        return new Response(JSON.stringify({
-          session: { status: 'not_found' },
-          stats: { total: 0, correct: 0, wrong: 0, answers: [] },
-          debug: { keys: [] }
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      
-      // Safety fix: Handle the list limit gracefully if it happens again
-      let list;
-      try {
-          list = await db.list({ prefix: `answer:${sessionId}:` });
-      } catch (listErr) {
-          throw new Error("KV list() limit exceeded. Please wait for daily reset or reduce polling.");
-      }
-
+      // 2. Fetch list safely
+      const list = await db.list({ prefix: `answer:${sessionId}:` });
       const answers = [];
-      const keys = [];
-      let correctCount = 0;
-      const safeKeys = list.keys || []; 
       
-      for (const key of safeKeys) {
-        keys.push(key.name);
-        const ans = await db.get(key.name, { type: "json" });
-        if (ans) {
-          answers.push(ans);
-          if (ans.answer && ans.answer === sessionData.correct_answer) {
-            correctCount++;
-          }
+      // 3. Loop through keys safely
+      if (list.keys && list.keys.length > 0) {
+        for (const key of list.keys) {
+          const ans = await db.get(key.name, { type: "json" });
+          if (ans) answers.push(ans);
         }
       }
     
+      // 4. Return the data
       return new Response(JSON.stringify({
-        session: sessionData,
+        session: sessionData || { status: 'active' },
         stats: { 
-          total: answers.length, 
-          correct: correctCount, 
-          wrong: answers.length - correctCount, 
+          total: answers.length,
+          correct: answers.filter(a => a.answer === sessionData?.correct_answer).length,
+          wrong: answers.filter(a => a.answer !== sessionData?.correct_answer).length,
           answers: answers 
-        },
-        debug: { keys: keys }
+        }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
