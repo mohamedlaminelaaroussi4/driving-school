@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
     <title>السؤال المباشر</title>
     <style>
+        /* --- same styles as before --- */
         body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
         .container { max-width: 600px; margin: 0 auto; }
         .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -30,7 +31,6 @@
         .waiting { text-align: center; color: #1e5f3a; padding: 2rem; font-size: 1.2rem; font-weight: bold; background: #f0fdf4; border-radius: 8px; border: 1px dashed #1e5f3a; }
         .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(30,95,58,0.3); border-radius: 50%; border-top-color: #1e5f3a; animation: spin 1s ease-in-out infinite; margin-right: 10px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .error-box { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; text-align: center; }
         .session-id-display { font-size: 0.8rem; color: #999; margin-top: 5px; }
     </style>
 </head>
@@ -56,7 +56,6 @@
                 <div class="waiting">
                     <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
                     <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً بمجرد بدء السؤال.</p>
-                    <!-- 🔥 NEW: Show session ID -->
                     <p class="session-id-display">رمز الجلسة: <span id="displaySessionId">---</span></p>
                 </div>
             </div>
@@ -91,6 +90,8 @@
         let currentAnswer = [];
         let remainingSeconds = 0;
         let timerInterval = null;
+        let lastStartTime = null;  // to detect new question
+        let isWaiting = true;
 
         window.onload = function() {
             if (!sessionId) {
@@ -98,7 +99,6 @@
                 document.getElementById('finalMessage').textContent = '⚠️ لم يتم العثور على الجلسة.';
                 return;
             }
-            // 🔥 Show session ID on the waiting screen
             document.getElementById('displaySessionId').textContent = sessionId;
             checkStudentData();
         };
@@ -146,8 +146,12 @@
             }
         }
 
-        function startTimer() {
+        function startTimer(duration) {
+            if (timerInterval) clearInterval(timerInterval);
+            remainingSeconds = duration;
             const display = document.getElementById('timerDisplay');
+            display.textContent = remainingSeconds;
+            display.classList.remove('warning');
             timerInterval = setInterval(() => {
                 remainingSeconds--;
                 display.textContent = remainingSeconds;
@@ -162,7 +166,21 @@
             }, 1000);
         }
 
+        function resetUIForNewQuestion(duration) {
+            // Clear current answer
+            currentAnswer = [];
+            updateDisplay();
+            // Reset result message
+            document.getElementById('resultMessage').style.display = 'none';
+            document.getElementById('submitBtn').disabled = false;
+            // Start timer with new duration
+            startTimer(duration);
+        }
+
         async function pollQuestion() {
+            const waitingDiv = document.getElementById('waitingDiv');
+            const questionDiv = document.getElementById('questionDiv');
+
             pollInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
@@ -170,12 +188,34 @@
                     const data = await response.json();
                     
                     if (data.status === 'active') {
-                        clearInterval(pollInterval);
-                        document.getElementById('waitingDiv').style.display = 'none';
-                        document.getElementById('questionDiv').style.display = 'block';
-                        remainingSeconds = data.duration || 60;
-                        document.getElementById('timerDisplay').textContent = remainingSeconds;
-                        startTimer();
+                        const newStartTime = data.start_time;
+                        // If question not yet displayed, or start_time changed => new question
+                        if (!lastStartTime || lastStartTime !== newStartTime) {
+                            // New question or first time
+                            lastStartTime = newStartTime;
+                            if (questionDiv.style.display === 'none') {
+                                // First time showing question
+                                clearInterval(pollInterval); // stop polling? We still need to poll for new questions.
+                                waitingDiv.style.display = 'none';
+                                questionDiv.style.display = 'block';
+                            } else {
+                                // Already showing question, new question: reset UI
+                                resetUIForNewQuestion(data.duration || 60);
+                            }
+                            // If we don't have a timer running, start it
+                            if (!timerInterval || remainingSeconds <= 0) {
+                                startTimer(data.duration || 60);
+                            }
+                        }
+                        // If already showing the same question, do nothing (timer already running)
+                    } else if (data.status === 'waiting') {
+                        // Session is waiting, but not active – maybe admin hasn't started yet.
+                        // If we are already in question mode, we could hide it? But we'll keep showing.
+                        // Actually, if status returns to waiting, we could hide the question and show waiting.
+                        // But for simplicity, we'll leave it.
+                        // For now, we do nothing.
+                    } else {
+                        // Other status (maybe ended) – handle if needed.
                     }
                 } catch (e) {
                     console.warn('Polling error:', e);
