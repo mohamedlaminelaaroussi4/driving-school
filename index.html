@@ -1,291 +1,301 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
-    <title>السؤال المباشر</title>
-    <style>
-        body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        h1 { color: #1a4d2e; text-align: center; margin-bottom: 1rem; font-size: 1.5rem; }
-        .form-group { margin-bottom: 1rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
-        .form-group input { width: 100%; padding: 0.8rem; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; transition: border-color 0.3s, background-color 0.3s; }
-        .form-group input:focus { outline: none; border-color: #1e5f3a; }
-        .form-group input.valid { border-color: #22c55e; background-color: #f0fdf4; }
-        .form-group input.invalid { border-color: #ef4444; background-color: #fef2f2; }
-        .form-group .hint { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; display: block; }
-        .form-group .error { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
-        .consent-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
-        .consent-box label { display: flex; align-items: flex-start; gap: 0.75rem; font-weight: normal; color: #166534; cursor: pointer; }
-        .consent-box input[type="checkbox"] { width: 20px; height: 20px; margin-top: 0.1rem; flex-shrink: 0; }
-        .consent-box .consent-text { font-size: 0.95rem; line-height: 1.5; }
-        .consent-box .consent-text strong { color: #1a4d2e; }
-        .validation-status { font-size: 0.9rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; text-align: center; }
-        .validation-status.ok { background: #dcfce7; color: #166534; }
-        .validation-status.fail { background: #fee2e2; color: #991b1b; }
-        .btn-primary { width: 100%; padding: 1.2rem; background: #94a3b8; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-primary:hover:not(:disabled) { background: #1e5f3a; }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: #94a3b8; }
-        .btn-primary.ready { background: #22c55e; }
-        .btn-primary.ready:hover { background: #16a34a; }
-        .timer { font-size: 3rem; font-weight: 800; color: #e6a017; text-align: center; margin: 0.5rem 0; }
-        .timer.warning { color: #dc2626; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .display-box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 15px; font-size: 2.5rem; text-align: center; min-height: 45px; margin: 1.5rem 0; color: #1a4d2e; font-weight: bold; direction: ltr; }
-        .keypad { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 1.5rem; }
-        .key-btn { padding: 20px; font-size: 1.8rem; font-weight: bold; border-radius: 12px; border: 2px solid #1e5f3a; background: white; color: #1e5f3a; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
-        .key-btn:active { background: #dcfce7; transform: scale(0.95); }
-        .delete-btn { grid-column: span 2; background: #fee2e2; color: #991b1b; border-color: #f87171; font-size: 1.2rem; padding: 15px; }
-        .message { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: bold; text-align: center; }
-        .message.success { background: #dcfce7; color: #166534; }
-        .message.error { background: #fee2e2; color: #991b1b; }
-        .instruction { text-align: center; color: #64748b; font-size: 0.95rem; margin-bottom: 1rem; }
-        .waiting { text-align: center; color: #1e5f3a; padding: 2rem; font-size: 1.2rem; font-weight: bold; background: #f0fdf4; border-radius: 8px; border: 1px dashed #1e5f3a; }
-        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(30,95,58,0.3); border-radius: 50%; border-top-color: #1e5f3a; animation: spin 1s ease-in-out infinite; margin-right: 10px; vertical-align: middle; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .session-id-display { font-size: 0.8rem; color: #999; margin-top: 5px; }
-        .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h1>📝 السؤال المباشر</h1>
+<script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+<script>
+    let currentAnswer = [];
+    let displayAnswerEl = null;
+    let timerInterval = null;
+    let remainingSeconds = 0;
+    let pollInterval = null;
+    let lastStartTime = null;
+    let sessionId = null;
+    let deviceFingerprint = '';
+    let cachedIP = null;
+    const API_BASE = 'https://driving-school-ad4.pages.dev/api';
 
-            <div id="loginDiv">
-                <p class="instruction">مرحباً بك! يرجى إدخال بياناتك للمشاركة</p>
-
-                <div class="form-group">
-                    <label>الاسم الكامل (بالأحرف اللاتينية فقط، على الأقل 6 أحرف)</label>
-                    <input type="text" id="nameInput" placeholder="Mohamed Ahmed" />
-                    <span class="hint">مثال: Mohamed Ahmed (على الأقل 6 أحرف)</span>
-                    <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط، وعلى الأقل 6 أحرف.</span>
-                </div>
-
-                <div class="form-group">
-                    <label>رقم الهاتف (يبدأ بـ 06 أو 07)</label>
-                    <input type="tel" id="phoneInput" placeholder="0612345678" dir="ltr" />
-                    <span class="hint">مثال: 0612345678</span>
-                    <span class="error" id="phoneError">⚠️ يجب أن يبدأ الرقم بـ 06 أو 07 ويتكون من 10 أرقام.</span>
-                </div>
-
-                <div class="form-group">
-                    <label>رقم التسجيل (اختياري، على الأقل 2 أحرف)</label>
-                    <input type="text" id="studentIdInput" placeholder="S001" />
-                    <span class="hint">مثال: S001 (اختياري، على الأقل 2 أحرف)</span>
-                    <span class="error" id="studentIdError">⚠️ إذا تم إدخال رقم التسجيل، يجب أن يكون على الأقل 2 أحرف.</span>
-                </div>
-
-                <div class="consent-box">
-                    <label>
-                        <input type="checkbox" id="consentCheck" />
-                        <span class="consent-text">
-                            <strong>أوافق على تسجيل بياناتي</strong> (الاسم، رقم الهاتف، عنوان IP، معلومات الجهاز) لأغراض تحليل المشاركة.
-                            تُستخدم هذه المعلومات داخلياً فقط ولا تشارك مع أطراف خارجية.
-                        </span>
-                    </label>
-                </div>
-
-                <div id="validationStatus" class="validation-status fail">⚠️ يرجى إكمال البيانات والموافقة</div>
-
-                <button class="btn-primary" id="enterBtn" disabled>دخول للانتظار</button>
-                <div id="loginMessage" class="message hidden"></div>
-            </div>
-
-            <div id="waitingDiv" style="display:none;">
-                <div class="waiting">
-                    <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
-                    <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً بمجرد بدء السؤال.</p>
-                    <p class="session-id-display">رمز الجلسة: <span id="displaySessionId">---</span></p>
-                </div>
-            </div>
-
-            <div id="questionDiv" style="display:none;">
-                <p class="instruction" style="color: #dc2626; font-weight: bold;">أجب الآن! انظر للشاشة واختر الإجابة الصحيحة</p>
-                <div class="timer" id="timerDisplay">--</div>
-                <div class="display-box" id="displayAnswer">...</div>
-                <div class="keypad">
-                    <button class="key-btn" onclick="addNumber(1)">1</button>
-                    <button class="key-btn" onclick="addNumber(2)">2</button>
-                    <button class="key-btn" onclick="addNumber(3)">3</button>
-                    <button class="key-btn" onclick="addNumber(4)">4</button>
-                    <button class="key-btn delete-btn" onclick="removeLast()">⌫ تراجع (مسح)</button>
-                </div>
-                <button id="submitBtn" class="btn-primary">✅ تأكيد الإجابة</button>
-                <div id="resultMessage" class="message" style="display:none;"></div>
-            </div>
-
-            <div id="resultDiv" style="display:none;">
-                <div id="finalMessage" class="message"></div>
-            </div>
-
-            <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
-    <script>
-        let currentAnswer = [];
-        let displayAnswerEl = null;
-        let timerInterval = null;
-        let remainingSeconds = 0;
-        let pollInterval = null;
-        let lastStartTime = null;
-        let sessionId = null;
-        let deviceFingerprint = '';
-        let cachedIP = null;                                     // ✅ NEW
-        const API_BASE = 'https://driving-school-ad4.pages.dev/api';
-    
-        // ─── Answer & Timer functions (unchanged) ──────────
-        function addNumber(num) { /* same */ }
-        function removeLast() { /* same */ }
-        function startTimer(duration) { /* same */ }
-        function resetUIForNewQuestion(duration) { /* same */ }
-    
-        async function checkQuestion() { /* same as before */ }
-    
-        function startPolling() {
-            if (pollInterval) clearInterval(pollInterval);
-            checkQuestion();
-            pollInterval = setInterval(async () => {
-                await checkQuestion();
-            }, 800);
+    // ─── Answer functions ──────────────────────────
+    function addNumber(num) {
+        if (currentAnswer.length < 4) {
+            currentAnswer.push(num);
+            currentAnswer.sort((a, b) => a - b);
+            if (displayAnswerEl) displayAnswerEl.textContent = currentAnswer.join(' , ');
         }
-    
-        async function getIP() {
-            try {
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                return data.ip;
-            } catch { return 'unknown'; }
+    }
+
+    function removeLast() {
+        currentAnswer.pop();
+        if (displayAnswerEl) {
+            displayAnswerEl.textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
         }
-    
-        async function getFingerprint() { /* same */ }
-    
-        // Validation functions (unchanged)
-        function validateName() { /* ... */ }
-        function validatePhone() { /* ... */ }
-        function validateStudentId() { /* ... */ }
-        function updateUI() { /* ... */ }
-    
-        // ─── Init ──────────────────────────────────────
-        window.onload = async function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            sessionId = urlParams.get('session');
-            displayAnswerEl = document.getElementById('displayAnswer');
-    
-            if (!sessionId) {
-                document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح.</div>';
+    }
+
+    // ─── Timer ──────────────────────────────────────
+    function startTimer(duration) {
+        if (timerInterval) clearInterval(timerInterval);
+        remainingSeconds = duration;
+        const timerDisplay = document.getElementById('timerDisplay');
+        timerDisplay.textContent = remainingSeconds;
+        timerDisplay.classList.remove('warning');
+        timerInterval = setInterval(() => {
+            remainingSeconds--;
+            timerDisplay.textContent = remainingSeconds;
+            if (remainingSeconds <= 10) timerDisplay.classList.add('warning');
+            if (remainingSeconds <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('submitBtn').disabled = true;
+                document.getElementById('submitBtn').textContent = '✅ تأكيد الإجابة';
+                const resultMessage = document.getElementById('resultMessage');
+                resultMessage.style.display = 'block';
+                resultMessage.className = 'message error';
+                resultMessage.textContent = '⏰ انتهى الوقت!';
+            }
+        }, 1000);
+    }
+
+    function resetUIForNewQuestion(duration) {
+        currentAnswer = [];
+        if (displayAnswerEl) displayAnswerEl.textContent = '...';
+        document.getElementById('resultMessage').style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('submitBtn').textContent = '✅ تأكيد الإجابة';
+        document.getElementById('resultDiv').style.display = 'none';
+        document.getElementById('questionDiv').style.display = 'block';
+        startTimer(duration);
+    }
+
+    // ─── Polling ──────────────────────────────────
+    async function checkQuestion() {
+        try {
+            const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
+            if (!response.ok) return;
+            const data = await response.json();
+
+            if (data.status === 'active') {
+                const newStartTime = data.start_time;
+                if (!lastStartTime || lastStartTime !== newStartTime) {
+                    lastStartTime = newStartTime;
+                    document.getElementById('waitingDiv').style.display = 'none';
+                    document.getElementById('questionDiv').style.display = 'none';
+                    document.getElementById('resultDiv').style.display = 'none';
+                    resetUIForNewQuestion(data.duration || 60);
+                }
+                if (document.getElementById('questionDiv').style.display === 'block' &&
+                    (!timerInterval || remainingSeconds <= 0)) {
+                    startTimer(data.duration || 60);
+                }
+            } else {
+                document.getElementById('questionDiv').style.display = 'none';
+                document.getElementById('resultDiv').style.display = 'none';
+                document.getElementById('waitingDiv').style.display = 'block';
+            }
+        } catch (e) {
+            console.warn('Polling error:', e);
+        }
+    }
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        checkQuestion();
+        pollInterval = setInterval(async () => {
+            await checkQuestion();
+        }, 800);
+    }
+
+    // ─── Get IP ──────────────────────────────────
+    async function getIP() {
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            return data.ip;
+        } catch { return 'unknown'; }
+    }
+
+    // ─── Get Fingerprint ──────────────────────────
+    async function getFingerprint() {
+        try {
+            const fp = await FingerprintJS.load();
+            const result = await fp.get();
+            deviceFingerprint = result.visitorId;
+        } catch { deviceFingerprint = 'unavailable'; }
+    }
+
+    // ─── Validation functions ──────────────────────
+    function validateName() {
+        const nameInput = document.getElementById('nameInput');
+        const nameError = document.getElementById('nameError');
+        const val = nameInput.value.trim();
+        const regex = /^[a-zA-Z\s\-]+$/;
+        const isValid = regex.test(val) && val.length >= 6;
+        nameInput.classList.toggle('valid', isValid);
+        nameInput.classList.toggle('invalid', !isValid && val.length > 0);
+        nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+        return isValid;
+    }
+
+    function validatePhone() {
+        const phoneInput = document.getElementById('phoneInput');
+        const phoneError = document.getElementById('phoneError');
+        const val = phoneInput.value.trim();
+        const regex = /^(06|07)\d{8}$/;
+        const isValid = regex.test(val);
+        phoneInput.classList.toggle('valid', isValid);
+        phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
+        phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+        return isValid;
+    }
+
+    function validateStudentId() {
+        const studentIdInput = document.getElementById('studentIdInput');
+        const studentIdError = document.getElementById('studentIdError');
+        const val = studentIdInput.value.trim();
+        if (val === '') {
+            studentIdInput.classList.remove('valid', 'invalid');
+            studentIdError.style.display = 'none';
+            return true;
+        }
+        const isValid = val.length >= 2;
+        studentIdInput.classList.toggle('valid', isValid);
+        studentIdInput.classList.toggle('invalid', !isValid);
+        studentIdError.style.display = (!isValid) ? 'block' : 'none';
+        return isValid;
+    }
+
+    function updateUI() {
+        const nameOk = validateName();
+        const phoneOk = validatePhone();
+        const studentIdOk = validateStudentId();
+        const consentCheck = document.getElementById('consentCheck');
+        const consentOk = consentCheck.checked;
+        const enterBtn = document.getElementById('enterBtn');
+        const validationStatus = document.getElementById('validationStatus');
+        const allOk = nameOk && phoneOk && studentIdOk && consentOk;
+
+        if (allOk) {
+            validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك الدخول';
+            validationStatus.className = 'validation-status ok';
+            enterBtn.disabled = false;
+            enterBtn.classList.add('ready');
+        } else {
+            let msg = '⚠️ يرجى تصحيح: ';
+            const issues = [];
+            if (!nameOk) issues.push('الاسم (أحرف لاتينية، 6 أحرف على الأقل)');
+            if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
+            if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
+            if (!consentOk) issues.push('الموافقة على جمع البيانات');
+            validationStatus.textContent = msg + issues.join('، ');
+            validationStatus.className = 'validation-status fail';
+            enterBtn.disabled = true;
+            enterBtn.classList.remove('ready');
+        }
+    }
+
+    // ─── Init ──────────────────────────────────────
+    window.onload = async function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        sessionId = urlParams.get('session');
+        displayAnswerEl = document.getElementById('displayAnswer');
+
+        if (!sessionId) {
+            document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
+            return;
+        }
+        document.getElementById('displaySessionId').textContent = sessionId;
+
+        // Auto‑rejoin if already joined this session
+        const storedSessionId = localStorage.getItem('liveSessionId');
+        const joined = localStorage.getItem('liveSessionJoined');
+        if (joined === 'true' && storedSessionId === sessionId) {
+            document.getElementById('loginDiv').style.display = 'none';
+            document.getElementById('waitingDiv').style.display = 'block';
+            cachedIP = await getIP();
+            startPolling();
+            return;
+        }
+
+        getFingerprint();
+
+        const nameInput = document.getElementById('nameInput');
+        const phoneInput = document.getElementById('phoneInput');
+        const studentIdInput = document.getElementById('studentIdInput');
+        const consentCheck = document.getElementById('consentCheck');
+
+        nameInput.addEventListener('input', updateUI);
+        phoneInput.addEventListener('input', updateUI);
+        studentIdInput.addEventListener('input', updateUI);
+        consentCheck.addEventListener('change', updateUI);
+        updateUI();
+
+        document.getElementById('enterBtn').addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
+            const studentId = studentIdInput.value.trim();
+
+            if (!validateName() || !validatePhone() || !validateStudentId()) {
+                alert('يرجى تصحيح البيانات قبل المتابعة.');
                 return;
             }
-            document.getElementById('displaySessionId').textContent = sessionId;
-    
-            // ✅ NEW: Auto‑rejoin if already joined this session
-            const storedSessionId = localStorage.getItem('liveSessionId');
-            const joined = localStorage.getItem('liveSessionJoined');
-            if (joined === 'true' && storedSessionId === sessionId) {
-                document.getElementById('loginDiv').style.display = 'none';
-                document.getElementById('waitingDiv').style.display = 'block';
-                cachedIP = await getIP();          // pre‑fetch IP again
-                startPolling();
-                return;                            // skip form setup
+
+            localStorage.setItem('studentName', name);
+            localStorage.setItem('studentPhone', phone);
+            if (studentId) localStorage.setItem('studentId', studentId);
+            else localStorage.removeItem('studentId');
+
+            localStorage.setItem('liveSessionId', sessionId);
+            localStorage.setItem('liveSessionJoined', 'true');
+
+            document.getElementById('loginDiv').style.display = 'none';
+            document.getElementById('waitingDiv').style.display = 'block';
+
+            cachedIP = await getIP();
+            startPolling();
+        });
+
+        document.getElementById('submitBtn').addEventListener('click', async function() {
+            if (currentAnswer.length === 0) {
+                alert('الرجاء اختيار رقم واحد على الأقل');
+                return;
             }
-    
-            getFingerprint();
-    
-            const nameInput = document.getElementById('nameInput');
-            const phoneInput = document.getElementById('phoneInput');
-            const studentIdInput = document.getElementById('studentIdInput');
-            const consentCheck = document.getElementById('consentCheck');
-    
-            nameInput.addEventListener('input', updateUI);
-            phoneInput.addEventListener('input', updateUI);
-            studentIdInput.addEventListener('input', updateUI);
-            consentCheck.addEventListener('change', updateUI);
-            updateUI();
-    
-            document.getElementById('enterBtn').addEventListener('click', async () => {
-                const name = nameInput.value.trim();
-                const phone = phoneInput.value.trim();
-                const studentId = studentIdInput.value.trim();
-    
-                if (!validateName() || !validatePhone() || !validateStudentId()) {
-                    alert('يرجى تصحيح البيانات قبل المتابعة.');
-                    return;
-                }
-    
-                localStorage.setItem('studentName', name);
-                localStorage.setItem('studentPhone', phone);
-                if (studentId) localStorage.setItem('studentId', studentId);
-                else localStorage.removeItem('studentId');
-    
-                // ✅ NEW: Remember that we joined this session
-                localStorage.setItem('liveSessionId', sessionId);
-                localStorage.setItem('liveSessionJoined', 'true');
-    
-                document.getElementById('loginDiv').style.display = 'none';
-                document.getElementById('waitingDiv').style.display = 'block';
-    
-                // ✅ NEW: Pre‑fetch IP for faster submissions later
-                cachedIP = await getIP();
-    
-                startPolling();
-            });
-    
-            document.getElementById('submitBtn').addEventListener('click', async function() {
-                if (currentAnswer.length === 0) {
-                    alert('الرجاء اختيار رقم واحد على الأقل');
-                    return;
-                }
-                this.disabled = true;
-                this.textContent = '⏳ جاري الإرسال...';
-    
-                const answerStr = currentAnswer.join(',');
-                const name = localStorage.getItem('studentName');
-                const phone = localStorage.getItem('studentPhone');
-                const studentId = localStorage.getItem('studentId') || '';
-    
-                // ✅ CHANGED: use pre‑fetched IP, fallback to fresh fetch if missing
-                const ipAddress = cachedIP || (await getIP());
-    
-                try {
-                    const response = await fetch(`${API_BASE}/questions/submit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            session_id: sessionId,
-                            full_name: name,
-                            phone: phone,
-                            student_id: studentId,
-                            answer: answerStr,
-                            ip_address: ipAddress,
-                            user_agent: navigator.userAgent,
-                            device_fingerprint: deviceFingerprint
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        clearInterval(timerInterval);
-                        document.getElementById('questionDiv').style.display = 'none';
-                        document.getElementById('waitingDiv').style.display = 'none';
-                        document.getElementById('resultDiv').style.display = 'block';
-                        const finalMessage = document.getElementById('finalMessage');
-                        finalMessage.className = 'message success';
-                        finalMessage.textContent = `✅ تم تأكيد إجابتك: ( ${answerStr} )`;
-                    } else {
-                        alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
-                        this.disabled = false;
-                        this.textContent = '✅ تأكيد الإجابة';
-                    }
-                } catch (error) {
-                    alert('خطأ في الاتصال: ' + error.message);
+            this.disabled = true;
+            this.textContent = '⏳ جاري الإرسال...';
+
+            const answerStr = currentAnswer.join(',');
+            const name = localStorage.getItem('studentName');
+            const phone = localStorage.getItem('studentPhone');
+            const studentId = localStorage.getItem('studentId') || '';
+            const ipAddress = cachedIP || (await getIP());
+
+            try {
+                const response = await fetch(`${API_BASE}/questions/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        full_name: name,
+                        phone: phone,
+                        student_id: studentId,
+                        answer: answerStr,
+                        ip_address: ipAddress,
+                        user_agent: navigator.userAgent,
+                        device_fingerprint: deviceFingerprint
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    clearInterval(timerInterval);
+                    document.getElementById('questionDiv').style.display = 'none';
+                    document.getElementById('waitingDiv').style.display = 'none';
+                    document.getElementById('resultDiv').style.display = 'block';
+                    const finalMessage = document.getElementById('finalMessage');
+                    finalMessage.className = 'message success';
+                    finalMessage.textContent = `✅ تم تأكيد إجابتك: ( ${answerStr} )`;
+                } else {
+                    alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
                     this.disabled = false;
                     this.textContent = '✅ تأكيد الإجابة';
                 }
-            });
-        };
-    </script>
-</body>
-</html>
+            } catch (error) {
+                alert('خطأ في الاتصال: ' + error.message);
+                this.disabled = false;
+                this.textContent = '✅ تأكيد الإجابة';
+            }
+        });
+    };
+</script>
