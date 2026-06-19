@@ -12,6 +12,8 @@
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
         .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
+        .form-group input.valid { border-color: #22c55e; background-color: #f0fdf4; }
+        .form-group input.invalid { border-color: #ef4444; background-color: #fef2f2; }
         .form-group .hint { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; display: block; }
         .form-group .error { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
         .consent-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
@@ -22,6 +24,8 @@
         .btn-primary { width: 100%; padding: 1.2rem; background: #1e5f3a; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
         .btn-primary:hover:not(:disabled) { background: #164d2e; }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; background: #94a3b8; }
+        .btn-primary.ready { background: #22c55e; }
+        .btn-primary.ready:hover { background: #16a34a; }
         .message { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: bold; text-align: center; }
         .message.success { background: #dcfce7; color: #166534; }
         .message.error { background: #fee2e2; color: #991b1b; }
@@ -29,6 +33,9 @@
         .session-id { font-size: 0.8rem; color: #999; text-align: center; margin-top: 0.5rem; }
         .hidden { display: none; }
         .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+        .validation-status { font-size: 0.9rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; text-align: center; }
+        .validation-status.ok { background: #dcfce7; color: #166534; }
+        .validation-status.fail { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body>
@@ -64,6 +71,8 @@
                         </span>
                     </label>
                 </div>
+
+                <div id="validationStatus" class="validation-status fail">⚠️ يرجى تصحيح البيانات المميزة بالأحمر</div>
 
                 <button class="btn-primary" id="checkinBtn" disabled>✅ أنا هنا</button>
                 <div id="resultMessage" class="message hidden"></div>
@@ -121,48 +130,69 @@
             return;
         }
 
-        // ─── Input validation ──────────────────────────────────────────
+        // ─── DOM refs ──────────────────────────────────────────────────
         const nameInput = document.getElementById('nameInput');
         const phoneInput = document.getElementById('phoneInput');
         const consentCheck = document.getElementById('consentCheck');
         const checkinBtn = document.getElementById('checkinBtn');
         const nameError = document.getElementById('nameError');
         const phoneError = document.getElementById('phoneError');
+        const validationStatus = document.getElementById('validationStatus');
 
+        // ─── Validation functions ──────────────────────────────────────
         function validateName() {
             const val = nameInput.value.trim();
-            // Latin letters, spaces, and hyphens allowed
             const regex = /^[a-zA-Z\s\-]+$/;
-            if (!regex.test(val) || val.length < 2) {
-                nameError.style.display = 'block';
-                return false;
-            }
-            nameError.style.display = 'none';
-            return true;
+            const isValid = regex.test(val) && val.length >= 2;
+            nameInput.classList.toggle('valid', isValid);
+            nameInput.classList.toggle('invalid', !isValid && val.length > 0);
+            nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
         }
 
         function validatePhone() {
             const val = phoneInput.value.trim();
-            // Must start with 06 or 07 and total 10 digits
             const regex = /^(06|07)\d{8}$/;
-            if (!regex.test(val)) {
-                phoneError.style.display = 'block';
-                return false;
-            }
-            phoneError.style.display = 'none';
-            return true;
+            const isValid = regex.test(val);
+            phoneInput.classList.toggle('valid', isValid);
+            phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
+            phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
         }
 
         function checkForm() {
             const nameOk = validateName();
             const phoneOk = validatePhone();
             const consentOk = consentCheck.checked;
-            checkinBtn.disabled = !(nameOk && phoneOk && consentOk);
+
+            const allOk = nameOk && phoneOk && consentOk;
+
+            // Update validation status message
+            if (allOk) {
+                validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك تسجيل الحضور';
+                validationStatus.className = 'validation-status ok';
+                checkinBtn.disabled = false;
+                checkinBtn.classList.add('ready');
+            } else {
+                let msg = '⚠️ يرجى تصحيح: ';
+                const issues = [];
+                if (!nameOk) issues.push('الاسم (يجب أن يكون أحرف لاتينية)');
+                if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
+                if (!consentOk) issues.push('الموافقة على جمع البيانات');
+                validationStatus.textContent = msg + issues.join('، ');
+                validationStatus.className = 'validation-status fail';
+                checkinBtn.disabled = true;
+                checkinBtn.classList.remove('ready');
+            }
         }
 
+        // ─── Attach events ─────────────────────────────────────────────
         nameInput.addEventListener('input', checkForm);
         phoneInput.addEventListener('input', checkForm);
         consentCheck.addEventListener('change', checkForm);
+
+        // ─── Initial check ─────────────────────────────────────────────
+        checkForm();
 
         // ─── Submit ─────────────────────────────────────────────────────
         document.getElementById('checkinBtn').addEventListener('click', async function() {
@@ -170,13 +200,12 @@
             const phone = phoneInput.value.trim();
             const studentId = document.getElementById('studentIdInput').value.trim();
 
-            // Validate again
+            // Validate again (safety)
             if (!validateName() || !validatePhone()) {
                 alert('يرجى تصحيح البيانات قبل الإرسال.');
                 return;
             }
 
-            // Get IP address
             const ipAddress = await getIP();
 
             this.disabled = true;
