@@ -167,6 +167,7 @@
             }
             document.getElementById('displaySessionId').textContent = sessionId;
 
+            // ─── Validation ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
             const studentIdInput = document.getElementById('studentIdInput');
@@ -243,6 +244,7 @@
             consentCheck.addEventListener('change', updateUI);
             updateUI();
 
+            // ─── Enter ────────────────────────────────────────────────────
             document.getElementById('enterBtn').addEventListener('click', async function() {
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
@@ -264,6 +266,12 @@
             });
 
             // ─── Polling ────────────────────────────────────────────────────
+            let pollInterval = null;
+            let lastStartTime = null;
+            let timerInterval = null;
+            let remainingSeconds = 0;
+            let currentAnswer = [];
+
             function startPolling() {
                 if (pollInterval) clearInterval(pollInterval);
                 pollInterval = setInterval(async () => {
@@ -294,10 +302,6 @@
             }
 
             // ─── Timer ──────────────────────────────────────────────────────
-            let remainingSeconds = 0;
-            let timerInterval = null;
-            let lastStartTime = null;
-
             function startTimer(duration) {
                 if (timerInterval) clearInterval(timerInterval);
                 remainingSeconds = duration;
@@ -320,6 +324,7 @@
             }
 
             function resetUIForNewQuestion(duration) {
+                currentAnswer = [];
                 document.getElementById('displayAnswer').textContent = '...';
                 document.getElementById('resultMessage').style.display = 'none';
                 document.getElementById('submitBtn').disabled = false;
@@ -327,18 +332,21 @@
             }
 
             // ─── Answer functions ──────────────────────────────────────────
-            let currentAnswer = [];
-
             function addNumber(num) {
                 if (currentAnswer.length < 4) {
                     currentAnswer.push(num);
-                    document.getElementById('displayAnswer').textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
+                    currentAnswer.sort((a, b) => a - b); // keep sorted
+                    document.getElementById('displayAnswer').textContent = currentAnswer.join(' , ');
                 }
             }
 
             function removeLast() {
                 currentAnswer.pop();
-                document.getElementById('displayAnswer').textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
+                if (currentAnswer.length === 0) {
+                    document.getElementById('displayAnswer').textContent = '...';
+                } else {
+                    document.getElementById('displayAnswer').textContent = currentAnswer.join(' , ');
+                }
             }
 
             // ─── Submit answer ─────────────────────────────────────────────
