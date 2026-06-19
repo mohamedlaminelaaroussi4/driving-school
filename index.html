@@ -5,14 +5,135 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
     <title>السؤال المباشر</title>
     <style>
-        /* ... (same styles as before, plus debug-info) ... */
+        body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h1 { color: #1a4d2e; text-align: center; margin-bottom: 1rem; font-size: 1.5rem; }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
+        .form-group input { width: 100%; padding: 0.8rem; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; transition: border-color 0.3s, background-color 0.3s; }
+        .form-group input:focus { outline: none; border-color: #1e5f3a; }
+        .form-group input.valid { border-color: #22c55e; background-color: #f0fdf4; }
+        .form-group input.invalid { border-color: #ef4444; background-color: #fef2f2; }
+        .form-group .hint { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; display: block; }
+        .form-group .error { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+
+        .consent-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+        .consent-box label { display: flex; align-items: flex-start; gap: 0.75rem; font-weight: normal; color: #166534; cursor: pointer; }
+        .consent-box input[type="checkbox"] { width: 20px; height: 20px; margin-top: 0.1rem; flex-shrink: 0; }
+        .consent-box .consent-text { font-size: 0.95rem; line-height: 1.5; }
+        .consent-box .consent-text strong { color: #1a4d2e; }
+
+        .validation-status { font-size: 0.9rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; text-align: center; }
+        .validation-status.ok { background: #dcfce7; color: #166534; }
+        .validation-status.fail { background: #fee2e2; color: #991b1b; }
+
+        .btn-primary { width: 100%; padding: 1.2rem; background: #94a3b8; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-primary:hover:not(:disabled) { background: #1e5f3a; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: #94a3b8; }
+        .btn-primary.ready { background: #22c55e; }
+        .btn-primary.ready:hover { background: #16a34a; }
+
+        .timer { font-size: 3rem; font-weight: 800; color: #e6a017; text-align: center; margin: 0.5rem 0; }
+        .timer.warning { color: #dc2626; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .display-box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 15px; font-size: 2.5rem; text-align: center; min-height: 45px; margin: 1.5rem 0; color: #1a4d2e; font-weight: bold; direction: ltr; }
+
+        .keypad { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 1.5rem; }
+        .key-btn { padding: 20px; font-size: 1.8rem; font-weight: bold; border-radius: 12px; border: 2px solid #1e5f3a; background: white; color: #1e5f3a; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
+        .key-btn:active { background: #dcfce7; transform: scale(0.95); }
+        .delete-btn { grid-column: span 2; background: #fee2e2; color: #991b1b; border-color: #f87171; font-size: 1.2rem; padding: 15px; }
+
+        .message { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: bold; text-align: center; }
+        .message.success { background: #dcfce7; color: #166534; }
+        .message.error { background: #fee2e2; color: #991b1b; }
+
+        .instruction { text-align: center; color: #64748b; font-size: 0.95rem; margin-bottom: 1rem; }
+
+        .waiting { text-align: center; color: #1e5f3a; padding: 2rem; font-size: 1.2rem; font-weight: bold; background: #f0fdf4; border-radius: 8px; border: 1px dashed #1e5f3a; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(30,95,58,0.3); border-radius: 50%; border-top-color: #1e5f3a; animation: spin 1s ease-in-out infinite; margin-right: 10px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .session-id-display { font-size: 0.8rem; color: #999; margin-top: 5px; }
+        .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
         .debug-info { font-size: 0.7rem; color: #999; margin-top: 1rem; padding: 0.5rem; background: #f1f5f9; border-radius: 4px; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
-            <!-- ... same HTML ... -->
+            <h1>📝 السؤال المباشر</h1>
+
+            <div id="loginDiv">
+                <p class="instruction">مرحباً بك! يرجى إدخال بياناتك للمشاركة</p>
+
+                <div class="form-group">
+                    <label>الاسم الكامل (بالأحرف اللاتينية فقط، على الأقل 6 أحرف)</label>
+                    <input type="text" id="nameInput" placeholder="Mohamed Ahmed" />
+                    <span class="hint">مثال: Mohamed Ahmed (على الأقل 6 أحرف)</span>
+                    <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط، وعلى الأقل 6 أحرف.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>رقم الهاتف (يبدأ بـ 06 أو 07)</label>
+                    <input type="tel" id="phoneInput" placeholder="0612345678" dir="ltr" />
+                    <span class="hint">مثال: 0612345678</span>
+                    <span class="error" id="phoneError">⚠️ يجب أن يبدأ الرقم بـ 06 أو 07 ويتكون من 10 أرقام.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>رقم التسجيل (اختياري، على الأقل 2 أحرف)</label>
+                    <input type="text" id="studentIdInput" placeholder="S001" />
+                    <span class="hint">مثال: S001 (اختياري، على الأقل 2 أحرف)</span>
+                    <span class="error" id="studentIdError">⚠️ إذا تم إدخال رقم التسجيل، يجب أن يكون على الأقل 2 أحرف.</span>
+                </div>
+
+                <div class="consent-box">
+                    <label>
+                        <input type="checkbox" id="consentCheck" />
+                        <span class="consent-text">
+                            <strong>أوافق على تسجيل بياناتي</strong> (الاسم، رقم الهاتف، عنوان IP، معلومات الجهاز) لأغراض تحليل المشاركة.
+                            تُستخدم هذه المعلومات داخلياً فقط ولا تشارك مع أطراف خارجية.
+                        </span>
+                    </label>
+                </div>
+
+                <div id="validationStatus" class="validation-status fail">⚠️ يرجى إكمال البيانات والموافقة</div>
+
+                <button class="btn-primary" id="enterBtn" disabled>دخول للانتظار</button>
+                <div id="loginMessage" class="message hidden"></div>
+            </div>
+
+            <div id="waitingDiv" style="display:none;">
+                <div class="waiting">
+                    <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
+                    <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً بمجرد بدء السؤال.</p>
+                    <p class="session-id-display">رمز الجلسة: <span id="displaySessionId">---</span></p>
+                </div>
+            </div>
+
+            <div id="questionDiv" style="display:none;">
+                <p class="instruction" style="color: #dc2626; font-weight: bold;">أجب الآن! انظر للشاشة واختر الإجابة الصحيحة</p>
+                <div class="timer" id="timerDisplay">--</div>
+                <div class="display-box" id="displayAnswer">...</div>
+                <div class="keypad">
+                    <button class="key-btn" id="btn1">1</button>
+                    <button class="key-btn" id="btn2">2</button>
+                    <button class="key-btn" id="btn3">3</button>
+                    <button class="key-btn" id="btn4">4</button>
+                    <button class="key-btn delete-btn" id="btnDelete">⌫ تراجع (مسح)</button>
+                </div>
+                <button id="submitBtn" class="btn-primary">✅ تأكيد الإجابة</button>
+                <div id="resultMessage" class="message" style="display:none;"></div>
+            </div>
+
+            <div id="resultDiv" style="display:none;">
+                <div id="finalMessage" class="message"></div>
+            </div>
+
+            <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
             <div class="debug-info" id="debugInfo">⏳ جاري التحميل...</div>
         </div>
     </div>
@@ -67,7 +188,7 @@
             document.getElementById('displaySessionId').textContent = sessionId;
             debug('Session ID: ' + sessionId);
 
-            // ─── Validation (same as before) ──────────────────────────────
+            // ─── Validation ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
             const studentIdInput = document.getElementById('studentIdInput');
@@ -145,7 +266,7 @@
             updateUI();
 
             // ─── Enter ────────────────────────────────────────────────────
-            document.getElementById('enterBtn').addEventListener('click', async function() {
+            enterBtn.addEventListener('click', async function() {
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
                 const studentId = studentIdInput.value.trim();
@@ -253,6 +374,13 @@
                 currentAnswer.pop();
                 document.getElementById('displayAnswer').textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
             }
+
+            // ─── Attach answer button events ──────────────────────────────
+            document.getElementById('btn1').addEventListener('click', function() { addNumber(1); });
+            document.getElementById('btn2').addEventListener('click', function() { addNumber(2); });
+            document.getElementById('btn3').addEventListener('click', function() { addNumber(3); });
+            document.getElementById('btn4').addEventListener('click', function() { addNumber(4); });
+            document.getElementById('btnDelete').addEventListener('click', removeLast);
 
             // ─── Submit ─────────────────────────────────────────────────────
             document.getElementById('submitBtn').addEventListener('click', async function() {
