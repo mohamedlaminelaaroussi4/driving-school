@@ -128,8 +128,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
         // ─── GLOBAL FUNCTIONS ──────────────────────────────────────────
-        // These must be in the global scope so the onclick attributes can find them
-        
         let currentAnswer = [];
         let displayAnswerEl = null;
         let timerInterval = null;
@@ -191,6 +189,9 @@
             if (displayAnswerEl) displayAnswerEl.textContent = '...';
             document.getElementById('resultMessage').style.display = 'none';
             document.getElementById('submitBtn').disabled = false;
+            // FIX: Hide result div when new question starts
+            document.getElementById('resultDiv').style.display = 'none';
+            document.getElementById('questionDiv').style.display = 'block';
             startTimer(duration);
         }
 
@@ -211,19 +212,21 @@
                         const newStartTime = data.start_time;
                         if (!lastStartTime || lastStartTime !== newStartTime) {
                             lastStartTime = newStartTime;
-                            // Show question
-                            document.getElementById('waitingDiv').style.display = 'none';
-                            document.getElementById('questionDiv').style.display = 'block';
+                            // FIX: Reset UI properly for new question
                             resetUIForNewQuestion(data.duration || 60);
                         }
-                        // Ensure timer is running
+                        // Ensure timer is running if question is active
                         if (!timerInterval || remainingSeconds <= 0) {
-                            startTimer(data.duration || 60);
+                            // Only start timer if questionDiv is visible (not already submitted)
+                            if (document.getElementById('questionDiv').style.display !== 'none') {
+                                startTimer(data.duration || 60);
+                            }
                         }
                     } else {
-                        // Keep waiting
+                        // FIX: If status is 'waiting', show waiting screen and hide others
                         document.getElementById('waitingDiv').style.display = 'block';
                         document.getElementById('questionDiv').style.display = 'none';
+                        document.getElementById('resultDiv').style.display = 'none';
                     }
                 } catch (e) {
                     console.warn('Polling error:', e);
@@ -411,7 +414,9 @@
                     const result = await response.json();
                     if (result.success) {
                         clearInterval(timerInterval);
+                        // FIX: Properly transition to result screen
                         document.getElementById('questionDiv').style.display = 'none';
+                        document.getElementById('waitingDiv').style.display = 'none';
                         document.getElementById('resultDiv').style.display = 'block';
                         const finalMessage = document.getElementById('finalMessage');
                         finalMessage.className = 'message success';
