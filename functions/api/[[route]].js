@@ -19,9 +19,14 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({ success: true, session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // 2. TRIGGER QUESTION
-  if (path.includes('/trigger')) {
-    const sessionId = path.split('/')[3];
+// 2. TRIGGER QUESTION
+  // Match exact pattern: /api/questions/session/{id}/trigger
+ if (path.includes('/trigger')) {
+   const parts = path.split('/');
+   // For /api/questions/session/S12345/trigger
+   // parts[1]=api, parts[2]=questions, parts[3]=session, parts[4]=S12345, parts[5]=trigger
+   const sessionId = parts[4]; 
+    
     const body = await request.json();
     await db.put(`session:${sessionId}`, JSON.stringify({
       status: 'active',
