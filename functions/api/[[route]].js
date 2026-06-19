@@ -76,39 +76,52 @@ export async function onRequest(context) {
     }
 
     // SUBMIT ANSWER
-    if (path === '/api/questions/submit') {
-      const body = await request.json();
-      const answerKey = `answer:${body.session_id}:${body.phone}`;
-      
-      // Store the answer
-      await db.put(answerKey, JSON.stringify({
-        session_id: body.session_id,
-        full_name: body.full_name,
-        phone: body.phone,
-        student_id: body.student_id || '',
-        answer: body.answer,
-        ip_address: body.ip_address || 'unknown',
-        user_agent: body.user_agent || 'unknown',
-        device_fingerprint: body.device_fingerprint || 'unknown',
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
-      }));
-      
-      // Update the index in session - CRITICAL: avoids list()
-      const sessionKey = `session:${body.session_id}`;
-      const sessionData = await db.get(sessionKey, { type: "json" });
-      if (sessionData) {
-        const answerKeys = sessionData.answerKeys || [];
-        if (!answerKeys.includes(answerKey)) {
-          answerKeys.push(answerKey);
-          sessionData.answerKeys = answerKeys;
-          await db.put(sessionKey, JSON.stringify(sessionData));
-        }
-      }
-      
-      return new Response(JSON.stringify({ success: true }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+    // SUBMIT ANSWER
+if (path === '/api/questions/submit') {
+  const body = await request.json();
+  console.log('📝 Submit received:', JSON.stringify(body));
+  
+  const answerKey = `answer:${body.session_id}:${body.phone}`;
+  
+  // Store the answer
+  const answerData = {
+    session_id: body.session_id,
+    full_name: body.full_name,
+    phone: body.phone,
+    student_id: body.student_id || '',
+    answer: body.answer,
+    ip_address: body.ip_address || 'unknown',
+    user_agent: body.user_agent || 'unknown',
+    device_fingerprint: body.device_fingerprint || 'unknown',
+    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+  };
+  
+  await db.put(answerKey, JSON.stringify(answerData));
+  console.log('✅ Answer stored at key:', answerKey);
+  
+  // Update the index in session
+  const sessionKey = `session:${body.session_id}`;
+  const sessionData = await db.get(sessionKey, { type: "json" });
+  console.log('📦 Current session data:', JSON.stringify(sessionData));
+  
+  if (sessionData) {
+    const answerKeys = sessionData.answerKeys || [];
+    if (!answerKeys.includes(answerKey)) {
+      answerKeys.push(answerKey);
+      sessionData.answerKeys = answerKeys;
+      await db.put(sessionKey, JSON.stringify(sessionData));
+      console.log('✅ Updated session with new answerKeys:', JSON.stringify(answerKeys));
+    } else {
+      console.log('⚠️ Answer key already exists in index');
     }
+  } else {
+    console.log('❌ Session not found:', sessionKey);
+  }
+  
+  return new Response(JSON.stringify({ success: true }), { 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+  });
+}
 
     // GET RESULTS (Admin Dashboard) - NO list() CALLS
     if (path.includes('/results')) {
