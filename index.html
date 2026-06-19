@@ -142,7 +142,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
-        // ─── Configuration ──────────────────────────────────────────────
+        // ─── API base (same as attendance) ────────────────────────────
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
@@ -212,7 +212,7 @@
         }
         displaySessionId.textContent = sessionId;
 
-        // ─── Validation functions ──────────────────────────────────────
+        // ─── Validation functions (exact same as attendance) ──────────
         function validateName() {
             const val = nameInput.value.trim();
             const regex = /^[a-zA-Z\s\-]+$/;
@@ -291,13 +291,11 @@
                 return;
             }
 
-            // Save to localStorage
             localStorage.setItem('studentName', name);
             localStorage.setItem('studentPhone', phone);
             if (studentId) localStorage.setItem('studentId', studentId);
             else localStorage.removeItem('studentId');
 
-            // Show waiting screen
             loginDiv.style.display = 'none';
             waitingDiv.style.display = 'block';
             startPolling();
@@ -317,21 +315,14 @@
                         if (!lastStartTime || lastStartTime !== newStartTime) {
                             lastStartTime = newStartTime;
                             if (questionDiv.style.display === 'none') {
-                                // First time showing question
                                 waitingDiv.style.display = 'none';
                                 questionDiv.style.display = 'block';
                             } else {
-                                // New question while already showing – reset
                                 resetUIForNewQuestion(data.duration || 60);
                             }
                             if (!timerInterval || remainingSeconds <= 0) {
                                 startTimer(data.duration || 60);
                             }
-                        }
-                    } else if (data.status === 'ended') {
-                        // Handle ended session – maybe show a message
-                        if (questionDiv.style.display !== 'none') {
-                            // If question is showing, maybe we want to end it
                         }
                     }
                 } catch (e) {
