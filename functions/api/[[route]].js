@@ -78,21 +78,42 @@ export async function onRequest(context) {
     const parts = path.split('/');
     const sessionId = parts[4];
     const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
-    const list = await db.list({ prefix: `answer:${sessionId}:` });
     
+    if (!sessionData) {
+      return new Response(JSON.stringify({
+        session: { status: 'not_found' },
+        stats: { total: 0, correct: 0, wrong: 0, answers: [] },
+        debug: { keys: [] }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // List all answers for this session
+    const list = await db.list({ prefix: `answer:${sessionId}:` });
     const answers = [];
-    let correctCount = 0;
     const keys = [];
+    let correctCount = 0;
+    
     for (const key of list.keys) {
       keys.push(key.name);
       const ans = await db.get(key.name, { type: "json" });
-      answers.push(ans);
-      if (ans.answer === sessionData.correct_answer) correctCount++;
+      if (ans) {
+        answers.push(ans);
+        // Compare answer strings (normalized)
+        if (ans.answer && ans.answer === sessionData.correct_answer) {
+          correctCount++;
+        }
+      }
     }
-
+  
+    // Format the response
     return new Response(JSON.stringify({
       session: sessionData,
-      stats: { total: answers.length, correct: correctCount, wrong: answers.length - correctCount, answers: answers },
+      stats: { 
+        total: answers.length, 
+        correct: correctCount, 
+        wrong: answers.length - correctCount, 
+        answers: answers 
+      },
       debug: { keys: keys }
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
