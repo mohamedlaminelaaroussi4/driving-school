@@ -180,6 +180,7 @@
             if (displayAnswerEl) displayAnswerEl.textContent = '...';
             document.getElementById('resultMessage').style.display = 'none';
             document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').textContent = '✅ تأكيد الإجابة';  // ✅ RESET BUTTON TEXT
             document.getElementById('resultDiv').style.display = 'none';
             document.getElementById('questionDiv').style.display = 'block';
             startTimer(duration);
