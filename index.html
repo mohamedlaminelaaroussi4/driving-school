@@ -88,6 +88,9 @@
     const sessionId = urlParams.get('session');
 
     let pollInterval = null;
+    let currentAnswer = [];
+    let remainingSeconds = 0;
+    let timerInterval = null;
 
     window.onload = function() {
         if (!sessionId) {
@@ -105,6 +108,45 @@
             document.getElementById('waitingDiv').style.display = 'block';
             pollQuestion();
         }
+    }
+
+    async function saveStudentData() {
+        const name = document.getElementById('nameInput').value;
+        const phone = document.getElementById('phoneInput').value;
+        if (!name || !phone) return alert('يرجى تعبئة الحقول');
+        
+        localStorage.setItem('studentName', name);
+        localStorage.setItem('studentPhone', phone);
+        
+        document.getElementById('loginDiv').style.display = 'none';
+        document.getElementById('waitingDiv').style.display = 'block';
+        pollQuestion();
+    }
+
+    function addNumber(num) {
+        if (currentAnswer.length < 4) {
+            currentAnswer.push(num);
+            document.getElementById('displayAnswer').textContent = currentAnswer.join('');
+        }
+    }
+
+    function removeLast() {
+        currentAnswer.pop();
+        document.getElementById('displayAnswer').textContent = currentAnswer.length ? currentAnswer.join('') : '...';
+    }
+
+    function startTimer() {
+        const display = document.getElementById('timerDisplay');
+        timerInterval = setInterval(() => {
+            remainingSeconds--;
+            display.textContent = remainingSeconds;
+            if (remainingSeconds <= 10) display.classList.add('warning');
+            if (remainingSeconds <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('submitBtn').disabled = true;
+                alert('انتهى الوقت!');
+            }
+        }, 1000);
     }
 
     async function pollQuestion() {
@@ -125,21 +167,25 @@
         }, 2000);
     }
 
-    // UPDATE: Ensure the submit function uses the correct path
     document.getElementById('submitBtn').addEventListener('click', async function() {
         this.disabled = true;
-        const response = await fetch(`${API_BASE}/questions/submit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: sessionId,
-                full_name: localStorage.getItem('studentName'),
-                phone: localStorage.getItem('studentPhone'),
-                answer: currentAnswer.join(',')
-            })
-        });
-        const result = await response.json();
-        if (result.success) alert('تم الإرسال بنجاح!');
+        try {
+            const response = await fetch(`${API_BASE}/questions/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    full_name: localStorage.getItem('studentName'),
+                    phone: localStorage.getItem('studentPhone'),
+                    answer: currentAnswer.join('')
+                })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert('تم الإرسال بنجاح!');
+                document.getElementById('questionDiv').innerHTML = '<h2>✅ شكراً لك، تم تسجيل إجابتك</h2>';
+            }
+        } catch (err) { alert('خطأ في الاتصال'); this.disabled = false; }
     });
 </script>
 </body>
