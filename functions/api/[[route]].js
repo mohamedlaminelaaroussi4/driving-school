@@ -53,11 +53,11 @@ export async function onRequest(context) {
         });
       }
       const data = JSON.parse(session);
+      // FIX: Don't send correct_answer to students
       return new Response(JSON.stringify({
         status: data.status || 'waiting',
         duration: data.duration || 60,
-        start_time: data.start_time || null,
-        correct_answer: data.correct_answer || null
+        start_time: data.start_time || null
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -79,7 +79,6 @@ export async function onRequest(context) {
     }
 
     // GET RESULTS (Admin Dashboard)
-    // Inside your /results block in [[route]].js
     if (path.includes('/results')) {
       const parts = path.split('/');
       const sessionId = parts[4];
@@ -99,13 +98,23 @@ export async function onRequest(context) {
         }
       }
     
-      // 4. Return the data
+      // 4. Return the data with sorted comparison
+      const correctAnswer = sessionData?.correct_answer ? 
+        sessionData.correct_answer.split(',').sort().join(',') : '';
+      
       return new Response(JSON.stringify({
         session: sessionData || { status: 'active' },
         stats: { 
           total: answers.length,
-          correct: answers.filter(a => a.answer === sessionData?.correct_answer).length,
-          wrong: answers.filter(a => a.answer !== sessionData?.correct_answer).length,
+          // FIX: Compare sorted answers for accuracy
+          correct: answers.filter(a => {
+            const studentAnswer = (a.answer || '').split(',').sort().join(',');
+            return studentAnswer === correctAnswer;
+          }).length,
+          wrong: answers.filter(a => {
+            const studentAnswer = (a.answer || '').split(',').sort().join(',');
+            return studentAnswer !== correctAnswer;
+          }).length,
           answers: answers 
         }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
