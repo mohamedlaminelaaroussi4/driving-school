@@ -4,34 +4,29 @@ export async function onRequest(context) {
   const path = url.pathname;
   const db = env.DB;
 
-  // 1. Define CORS Headers globally
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  // 2. Handle preflight requests
   if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
-  // 3. 🛡️ GLOBAL ERROR BOUNDARY
   try {
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // QUESTIONS API (KV storage)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+    // ━━━ QUESTIONS API ━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     // START SESSION
     if (path === '/api/questions/start') {
       const sessionId = 'S' + Math.floor(Math.random() * 90000 + 10000);
-      await db.put(`session:${sessionId}`, JSON.stringify({ 
-        status: 'waiting', 
+      await db.put(`session:${sessionId}`, JSON.stringify({
+        status: 'waiting',
         created: Date.now(),
-        answerKeys: [] // Track all answer keys for this session
+        answers: []           // ← all answers go here
       }));
-      return new Response(JSON.stringify({ success: true, session_id: sessionId }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ success: true, session_id: sessionId }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -40,34 +35,33 @@ export async function onRequest(context) {
       const parts = path.split('/');
       const sessionId = parts[4];
       const body = await request.json();
-      
-      // Preserve existing answerKeys when updating session
-      const existingSession = await db.get(`session:${sessionId}`, { type: "json" });
-      const existingAnswerKeys = existingSession?.answerKeys || [];
-      
+
+      // Preserve existing answers array
+      const existing = await db.get(`session:${sessionId}`, { type: "json" });
+      const existingAnswers = existing?.answers || [];
+
       await db.put(`session:${sessionId}`, JSON.stringify({
         status: 'active',
         correct_answer: body.correct_answer,
         duration: body.duration,
         start_time: Date.now(),
-        answerKeys: existingAnswerKeys // Keep the index
+        answers: existingAnswers
       }));
-      return new Response(JSON.stringify({ success: true }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // GET CURRENT QUESTION (Student Polling)
+    // STUDENT POLLING – still no correct_answer leaked
     if (path === '/api/questions/current') {
       const sessionId = url.searchParams.get('session');
       const session = await db.get(`session:${sessionId}`);
       if (!session) {
-        return new Response(JSON.stringify({ status: 'waiting' }), { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        return new Response(JSON.stringify({ status: 'waiting' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
       const data = JSON.parse(session);
-      // Don't send correct_answer to students
       return new Response(JSON.stringify({
         status: data.status || 'waiting',
         duration: data.duration || 60,
@@ -75,17 +69,21 @@ export async function onRequest(context) {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // SUBMIT ANSWER
-    // SUBMIT ANSWER
+    // SUBMIT ANSWER – store directly in session
     if (path === '/api/questions/submit') {
       const body = await request.json();
-      console.log('📝 Submit received:', JSON.stringify(body));
-      
-      const answerKey = `answer:${body.session_id}:${body.phone}`;
-      
-      // Store the answer
-      const answerData = {
-        session_id: body.session_id,
+      const sessionKey = `session:${body.session_id}`;
+      const sessionData = await db.get(sessionKey, { type: "json" });
+
+      if (!sessionData) {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Build answer object (same as before)
+      const newAnswer = {
         full_name: body.full_name,
         phone: body.phone,
         student_id: body.student_id || '',
@@ -95,59 +93,44 @@ export async function onRequest(context) {
         device_fingerprint: body.device_fingerprint || 'unknown',
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
       };
-      
-      await db.put(answerKey, JSON.stringify(answerData));
-      console.log('✅ Answer stored at key:', answerKey);
-      
-      // Update the index in session
-      const sessionKey = `session:${body.session_id}`;
-      const sessionData = await db.get(sessionKey, { type: "json" });
-      console.log('📦 Current session data:', JSON.stringify(sessionData));
-      
-      if (sessionData) {
-        const answerKeys = sessionData.answerKeys || [];
-        if (!answerKeys.includes(answerKey)) {
-          answerKeys.push(answerKey);
-          sessionData.answerKeys = answerKeys;
-          await db.put(sessionKey, JSON.stringify(sessionData));
-          console.log('✅ Updated session with new answerKeys:', JSON.stringify(answerKeys));
-        } else {
-          console.log('⚠️ Answer key already exists in index');
-        }
+
+      // Replace existing answer from same phone (no duplicates)
+      const existingIndex = sessionData.answers.findIndex(a => a.phone === body.phone);
+      if (existingIndex >= 0) {
+        sessionData.answers[existingIndex] = newAnswer;
       } else {
-        console.log('❌ Session not found:', sessionKey);
+        sessionData.answers.push(newAnswer);
       }
-      
-      return new Response(JSON.stringify({ success: true }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+
+      await db.put(sessionKey, JSON.stringify(sessionData));
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // GET RESULTS (Admin Dashboard) - NO list() CALLS
+    // GET RESULTS – read directly from session
     if (path.includes('/results')) {
       const parts = path.split('/');
       const sessionId = parts[4];
-      
-      // 1. Get Session Data (includes answerKeys index)
       const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
-      
-      // 2. Use stored keys instead of list()
-      const answerKeys = sessionData?.answerKeys || [];
-      const answers = [];
-      
-      // 3. Get each answer individually by key
-      for (const key of answerKeys) {
-        const ans = await db.get(key, { type: "json" });
-        if (ans) answers.push(ans);
+
+      if (!sessionData) {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
-    
-      // 4. Return the data with sorted comparison
-      const correctAnswer = sessionData?.correct_answer ? 
-        sessionData.correct_answer.split(',').sort().join(',') : '';
-      
+
+      const correctAnswer = sessionData.correct_answer
+        ? sessionData.correct_answer.split(',').sort().join(',')
+        : '';
+
+      const answers = sessionData.answers || [];
+
       return new Response(JSON.stringify({
-        session: sessionData || { status: 'active' },
-        stats: { 
+        session: sessionData,
+        stats: {
           total: answers.length,
           correct: answers.filter(a => {
             const studentAnswer = (a.answer || '').split(',').sort().join(',');
@@ -157,69 +140,48 @@ export async function onRequest(context) {
             const studentAnswer = (a.answer || '').split(',').sort().join(',');
             return studentAnswer !== correctAnswer;
           }).length,
-          answers: answers 
+          answers: answers
         }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // ATTENDANCE API (Forward to Flask via Tunnel)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    const FLASK_BASE = 'https://YOUR_TUNNEL_URL'; // ⚠️ Replace with your actual tunnel URL
+    // ━━━ ATTENDANCE API (unchanged) ━━━━━━━━━━━━━━━━━
+    const FLASK_BASE = 'https://YOUR_TUNNEL_URL';   // ← replace with your tunnel
 
-    // ATTENDANCE START
     if (path === '/api/attendance/start') {
-      const flaskUrl = `${FLASK_BASE}/api/attendance/start`;
       try {
-        const response = await fetch(flaskUrl, { method: 'POST' });
-        const data = await response.json();
+        const res = await fetch(`${FLASK_BASE}/api/attendance/start`, { method: 'POST' });
+        const data = await res.json();
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (error) {
+      } catch {
         const sessionId = 'A' + Math.floor(Math.random() * 90000 + 10000);
         await db.put(`attendance:${sessionId}`, JSON.stringify({ status: 'active', created: Date.now(), attendees: [] }));
         return new Response(JSON.stringify({ session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    // ATTENDANCE CHECKIN
     if (path === '/api/attendance/checkin') {
       const body = await request.json();
-      const session_id = body.session_id;
-      const full_name = body.full_name || '';
-      const phone = body.phone || '';
-      const student_id = body.student_id || '';
-      
+      const { session_id, full_name, phone, student_id } = body;
       if (!session_id || !full_name || !phone) {
-        return new Response(JSON.stringify({ error: 'Missing fields' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
-      const flaskUrl = `${FLASK_BASE}/api/attendance/checkin`;
       try {
-        const response = await fetch(flaskUrl, {
+        const res = await fetch(`${FLASK_BASE}/api/attendance/checkin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        const data = await response.json();
+        const data = await res.json();
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (error) {
-        const sessionKey = `attendance:${session_id}`;
-        const sessionData = await db.get(sessionKey, { type: 'json' });
-        if (!sessionData) {
-          return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch {
+        const key = `attendance:${session_id}`;
+        const data = await db.get(key, { type: 'json' });
+        if (!data) return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        if (data.attendees.some(a => a.phone === phone || (student_id && a.student_id === student_id))) {
+          return new Response(JSON.stringify({ error: 'مسجل بالفعل' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
-
-        if (sessionData.attendees) {
-          const exists = sessionData.attendees.some(a => a.phone === phone || (student_id && a.student_id === student_id));
-          if (exists) {
-            return new Response(JSON.stringify({ error: 'مسجل بالفعل' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-          }
-        }
-
-        const newAttendee = {
+        const newAtt = {
           id: 'A' + Math.floor(Math.random() * 90000 + 10000),
           student_id, full_name, phone,
           timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
@@ -228,63 +190,49 @@ export async function onRequest(context) {
           user_agent: body.user_agent || 'unknown',
           device_fingerprint: body.device_fingerprint || 'unknown'
         };
-        sessionData.attendees = sessionData.attendees || [];
-        sessionData.attendees.push(newAttendee);
-        await db.put(sessionKey, JSON.stringify(sessionData));
-        return new Response(JSON.stringify({ success: true, attendance: newAttendee }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        data.attendees.push(newAtt);
+        await db.put(key, JSON.stringify(data));
+        return new Response(JSON.stringify({ success: true, attendance: newAtt }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    // ATTENDANCE SESSION (GET)
     if (path.includes('/attendance/session/')) {
-      const parts = path.split('/');
-      const sessionId = parts[parts.length - 1];
-      const flaskUrl = `${FLASK_BASE}/api/attendance/session/${sessionId}`;
+      const sessionId = path.split('/').pop();
       try {
-        const response = await fetch(flaskUrl);
-        const data = await response.json();
+        const res = await fetch(`${FLASK_BASE}/api/attendance/session/${sessionId}`);
+        const data = await res.json();
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (error) {
-        const sessionData = await db.get(`attendance:${sessionId}`, { type: 'json' });
-        if (!sessionData) {
-          return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        return new Response(JSON.stringify(sessionData.attendees || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch {
+        const data = await db.get(`attendance:${sessionId}`, { type: 'json' });
+        if (!data) return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(data.attendees || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    // ATTENDANCE ALL
     if (path === '/api/attendance/all') {
       try {
-        const response = await fetch(`${FLASK_BASE}/api/attendance/all`);
-        const data = await response.json();
+        const res = await fetch(`${FLASK_BASE}/api/attendance/all`);
+        const data = await res.json();
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (error) {
+      } catch {
         return new Response(JSON.stringify([]), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    // ATTENDANCE STATS
     if (path === '/api/attendance/stats') {
       try {
-        const response = await fetch(`${FLASK_BASE}/api/attendance/stats`);
-        const data = await response.json();
+        const res = await fetch(`${FLASK_BASE}/api/attendance/stats`);
+        const data = await res.json();
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (error) {
+      } catch {
         return new Response(JSON.stringify({ total_sessions: 0, total_checkins: 0, unique_students: 0, unique_phones: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    // Default 404
     return new Response(JSON.stringify({ error: 'Endpoint not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-  } catch (globalError) {
-    // 🚨 Ensures CORS is never dropped on a crash
-    return new Response(JSON.stringify({
-      success: false,
-      error: "API Crash",
-      details: globalError.message
-    }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ success: false, error: "API Crash", details: e.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
