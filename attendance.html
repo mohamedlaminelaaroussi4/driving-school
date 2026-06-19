@@ -31,11 +31,11 @@
         .message.error { background: #fee2e2; color: #991b1b; }
         .instruction { text-align: center; color: #64748b; font-size: 0.95rem; margin-bottom: 1rem; }
         .session-id { font-size: 0.8rem; color: #999; text-align: center; margin-top: 0.5rem; }
-        .hidden { display: none; }
         .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
         .validation-status { font-size: 0.9rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; text-align: center; }
         .validation-status.ok { background: #dcfce7; color: #166534; }
         .validation-status.fail { background: #fee2e2; color: #991b1b; }
+        .debug-log { font-size: 0.75rem; color: #666; background: #f1f5f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; display: none; }
     </style>
 </head>
 <body>
@@ -47,13 +47,13 @@
             <div id="loginDiv">
                 <div class="form-group">
                     <label>الاسم الكامل (بالأحرف اللاتينية فقط)</label>
-                    <input type="text" id="nameInput" placeholder="Mohamed Ahmed" required />
+                    <input type="text" id="nameInput" placeholder="Mohamed Ahmed" />
                     <span class="hint">مثال: Mohamed Ahmed</span>
                     <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط.</span>
                 </div>
                 <div class="form-group">
                     <label>رقم الهاتف (يبدأ بـ 06 أو 07)</label>
-                    <input type="tel" id="phoneInput" placeholder="0612345678" required dir="ltr" />
+                    <input type="tel" id="phoneInput" placeholder="0612345678" dir="ltr" />
                     <span class="hint">مثال: 0612345678</span>
                     <span class="error" id="phoneError">⚠️ يجب أن يبدأ الرقم بـ 06 أو 07 ويتكون من 10 أرقام.</span>
                 </div>
@@ -72,7 +72,7 @@
                     </label>
                 </div>
 
-                <div id="validationStatus" class="validation-status fail">⚠️ يرجى تصحيح البيانات المميزة بالأحمر</div>
+                <div id="validationStatus" class="validation-status fail">⚠️ يرجى إكمال البيانات والموافقة</div>
 
                 <button class="btn-primary" id="checkinBtn" disabled>✅ أنا هنا</button>
                 <div id="resultMessage" class="message hidden"></div>
@@ -85,39 +85,51 @@
 
             <p class="session-id" id="sessionIdDisplay">رمز الجلسة: ---</p>
             <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
+            <div class="debug-log" id="debugLog"></div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
+        // ─── Debug logger ──────────────────────────────────────────────
+        function debug(msg) {
+            const el = document.getElementById('debugLog');
+            el.style.display = 'block';
+            el.textContent += msg + '\n';
+            console.log('[Att]', msg);
+        }
+
+        // ─── API base ──────────────────────────────────────────────────
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
+        debug('Session ID: ' + (sessionId || 'none'));
 
         let deviceFingerprint = '';
 
-        // ─── Generate device fingerprint ──────────────────────────────
+        // ─── Fingerprint ──────────────────────────────────────────────
         async function getFingerprint() {
             try {
                 const fp = await FingerprintJS.load();
                 const result = await fp.get();
                 deviceFingerprint = result.visitorId;
-                console.log('Device fingerprint:', deviceFingerprint);
+                debug('Fingerprint: ' + deviceFingerprint);
             } catch (e) {
                 deviceFingerprint = 'unavailable';
-                console.warn('Fingerprint not available');
+                debug('Fingerprint error: ' + e.message);
             }
         }
         getFingerprint();
 
-        // ─── Get IP address via ipify ──────────────────────────────────
+        // ─── IP address ────────────────────────────────────────────────
         async function getIP() {
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
                 const data = await res.json();
+                debug('IP: ' + data.ip);
                 return data.ip;
             } catch (e) {
-                console.warn('Could not get IP:', e);
+                debug('IP error: ' + e.message);
                 return 'unknown';
             }
         }
@@ -127,6 +139,7 @@
         if (!sessionId) {
             document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
             document.getElementById('checkinBtn').disabled = true;
+            debug('Invalid session ID');
             return;
         }
 
@@ -147,6 +160,7 @@
             nameInput.classList.toggle('valid', isValid);
             nameInput.classList.toggle('invalid', !isValid && val.length > 0);
             nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            debug('Name: "' + val + '" valid=' + isValid);
             return isValid;
         }
 
@@ -157,42 +171,43 @@
             phoneInput.classList.toggle('valid', isValid);
             phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
             phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            debug('Phone: "' + val + '" valid=' + isValid);
             return isValid;
         }
 
-        function checkForm() {
+        function updateUI() {
             const nameOk = validateName();
             const phoneOk = validatePhone();
             const consentOk = consentCheck.checked;
+            debug('NameOk=' + nameOk + ', PhoneOk=' + phoneOk + ', ConsentOk=' + consentOk);
 
-            const allOk = nameOk && phoneOk && consentOk;
-
-            // Update validation status message
-            if (allOk) {
+            if (nameOk && phoneOk && consentOk) {
                 validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك تسجيل الحضور';
                 validationStatus.className = 'validation-status ok';
                 checkinBtn.disabled = false;
                 checkinBtn.classList.add('ready');
+                debug('Button ENABLED');
             } else {
                 let msg = '⚠️ يرجى تصحيح: ';
                 const issues = [];
-                if (!nameOk) issues.push('الاسم (يجب أن يكون أحرف لاتينية)');
+                if (!nameOk) issues.push('الاسم (أحرف لاتينية)');
                 if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
                 if (!consentOk) issues.push('الموافقة على جمع البيانات');
                 validationStatus.textContent = msg + issues.join('، ');
                 validationStatus.className = 'validation-status fail';
                 checkinBtn.disabled = true;
                 checkinBtn.classList.remove('ready');
+                debug('Button DISABLED');
             }
         }
 
         // ─── Attach events ─────────────────────────────────────────────
-        nameInput.addEventListener('input', checkForm);
-        phoneInput.addEventListener('input', checkForm);
-        consentCheck.addEventListener('change', checkForm);
+        nameInput.addEventListener('input', updateUI);
+        phoneInput.addEventListener('input', updateUI);
+        consentCheck.addEventListener('change', updateUI);
 
         // ─── Initial check ─────────────────────────────────────────────
-        checkForm();
+        updateUI();
 
         // ─── Submit ─────────────────────────────────────────────────────
         document.getElementById('checkinBtn').addEventListener('click', async function() {
@@ -200,7 +215,6 @@
             const phone = phoneInput.value.trim();
             const studentId = document.getElementById('studentIdInput').value.trim();
 
-            // Validate again (safety)
             if (!validateName() || !validatePhone()) {
                 alert('يرجى تصحيح البيانات قبل الإرسال.');
                 return;
@@ -226,6 +240,7 @@
                     })
                 });
                 const data = await response.json();
+                debug('Server response: ' + JSON.stringify(data));
                 if (data.success) {
                     document.getElementById('loginDiv').style.display = 'none';
                     document.getElementById('successDiv').style.display = 'block';
@@ -236,6 +251,7 @@
                 }
             } catch (error) {
                 alert('خطأ في الاتصال: ' + error.message);
+                debug('Submit error: ' + error.message);
                 this.disabled = false;
                 this.textContent = '✅ أنا هنا';
             }
