@@ -192,10 +192,10 @@
                 if (!response.ok) return;
                 const data = await response.json();
 
-                // If already submitted for this exact question, don't show it again
                 const submittedStart = localStorage.getItem('lastSubmittedStartTime');
+
+                // If already submitted for this exact question, show result instead of question
                 if (data.status === 'active' && submittedStart && data.start_time == submittedStart) {
-                    // Show the previous result instead of the question
                     if (document.getElementById('resultDiv').style.display !== 'block') {
                         document.getElementById('waitingDiv').style.display = 'none';
                         document.getElementById('questionDiv').style.display = 'none';
@@ -337,6 +337,65 @@
             const displaySessionEl = document.getElementById('displaySessionId');
             if (displaySessionEl) displaySessionEl.textContent = sessionId;
 
+            // ATTACH SUBMIT LISTENER ONCE (before any return)
+            document.getElementById('submitBtn').addEventListener('click', async function() {
+                if (currentAnswer.length === 0) {
+                    alert('الرجاء اختيار رقم واحد على الأقل');
+                    return;
+                }
+                this.disabled = true;
+                this.textContent = '⏳ جاري الإرسال...';
+
+                const answerStr = currentAnswer.join(',');
+                const name = localStorage.getItem('studentName');
+                const phone = localStorage.getItem('studentPhone');
+                const studentId = localStorage.getItem('studentId') || '';
+                const ipAddress = cachedIP || (await getIP());
+
+                try {
+                    const response = await fetch(`${API_BASE}/questions/submit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            full_name: name,
+                            phone: phone,
+                            student_id: studentId,
+                            answer: answerStr,
+                            ip_address: ipAddress,
+                            user_agent: navigator.userAgent,
+                            device_fingerprint: deviceFingerprint
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        clearInterval(timerInterval);
+
+                        // Remember submission for this question
+                        if (lastStartTime) {
+                            localStorage.setItem('lastSubmittedStartTime', lastStartTime);
+                            localStorage.setItem('lastSubmittedAnswer', answerStr);
+                        }
+
+                        document.getElementById('questionDiv').style.display = 'none';
+                        document.getElementById('waitingDiv').style.display = 'none';
+                        document.getElementById('resultDiv').style.display = 'block';
+                        const finalMessage = document.getElementById('finalMessage');
+                        finalMessage.className = 'message success';
+                        finalMessage.textContent = `✅ تم تأكيد إجابتك: ( ${answerStr} )`;
+                    } else {
+                        alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
+                        this.disabled = false;
+                        this.textContent = '✅ تأكيد الإجابة';
+                    }
+                } catch (error) {
+                    alert('خطأ في الاتصال: ' + error.message);
+                    this.disabled = false;
+                    this.textContent = '✅ تأكيد الإجابة';
+                }
+            });
+
+            // Auto-rejoin if already joined this session
             const storedSessionId = localStorage.getItem('liveSessionId');
             const joined = localStorage.getItem('liveSessionJoined');
             if (joined === 'true' && storedSessionId === sessionId) {
@@ -383,63 +442,6 @@
 
                 cachedIP = await getIP();
                 startPolling();
-            });
-
-            document.getElementById('submitBtn').addEventListener('click', async function() {
-                if (currentAnswer.length === 0) {
-                    alert('الرجاء اختيار رقم واحد على الأقل');
-                    return;
-                }
-                this.disabled = true;
-                this.textContent = '⏳ جاري الإرسال...';
-
-                const answerStr = currentAnswer.join(',');
-                const name = localStorage.getItem('studentName');
-                const phone = localStorage.getItem('studentPhone');
-                const studentId = localStorage.getItem('studentId') || '';
-                const ipAddress = cachedIP || (await getIP());
-
-                try {
-                    const response = await fetch(`${API_BASE}/questions/submit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            session_id: sessionId,
-                            full_name: name,
-                            phone: phone,
-                            student_id: studentId,
-                            answer: answerStr,
-                            ip_address: ipAddress,
-                            user_agent: navigator.userAgent,
-                            device_fingerprint: deviceFingerprint
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        clearInterval(timerInterval);
-
-                        // Remember that we submitted for this question
-                        if (lastStartTime) {
-                            localStorage.setItem('lastSubmittedStartTime', lastStartTime);
-                            localStorage.setItem('lastSubmittedAnswer', answerStr);
-                        }
-
-                        document.getElementById('questionDiv').style.display = 'none';
-                        document.getElementById('waitingDiv').style.display = 'none';
-                        document.getElementById('resultDiv').style.display = 'block';
-                        const finalMessage = document.getElementById('finalMessage');
-                        finalMessage.className = 'message success';
-                        finalMessage.textContent = `✅ تم تأكيد إجابتك: ( ${answerStr} )`;
-                    } else {
-                        alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
-                        this.disabled = false;
-                        this.textContent = '✅ تأكيد الإجابة';
-                    }
-                } catch (error) {
-                    alert('خطأ في الاتصال: ' + error.message);
-                    this.disabled = false;
-                    this.textContent = '✅ تأكيد الإجابة';
-                }
             });
         };
     </script>
