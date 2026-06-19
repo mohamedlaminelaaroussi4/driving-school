@@ -25,8 +25,14 @@ export async function onRequest(context) {
     // START SESSION
     if (path === '/api/questions/start') {
       const sessionId = 'S' + Math.floor(Math.random() * 90000 + 10000);
-      await db.put(`session:${sessionId}`, JSON.stringify({ status: 'waiting', created: Date.now() }));
-      return new Response(JSON.stringify({ success: true, session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      await db.put(`session:${sessionId}`, JSON.stringify({ 
+        status: 'waiting', 
+        created: Date.now(),
+        answerKeys: [] // Track all answer keys for this session
+      }));
+      return new Response(JSON.stringify({ success: true, session_id: sessionId }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     // TRIGGER QUESTION
@@ -34,13 +40,21 @@ export async function onRequest(context) {
       const parts = path.split('/');
       const sessionId = parts[4];
       const body = await request.json();
+      
+      // Preserve existing answerKeys when updating session
+      const existingSession = await db.get(`session:${sessionId}`, { type: "json" });
+      const existingAnswerKeys = existingSession?.answerKeys || [];
+      
       await db.put(`session:${sessionId}`, JSON.stringify({
         status: 'active',
         correct_answer: body.correct_answer,
         duration: body.duration,
-        start_time: Date.now()
+        start_time: Date.now(),
+        answerKeys: existingAnswerKeys // Keep the index
       }));
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     // GET CURRENT QUESTION (Student Polling)
@@ -53,7 +67,7 @@ export async function onRequest(context) {
         });
       }
       const data = JSON.parse(session);
-      // FIX: Don't send correct_answer to students
+      // Don't send correct_answer to students
       return new Response(JSON.stringify({
         status: data.status || 'waiting',
         duration: data.duration || 60,
@@ -64,7 +78,10 @@ export async function onRequest(context) {
     // SUBMIT ANSWER
     if (path === '/api/questions/submit') {
       const body = await request.json();
-      await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify({
+      const answerKey = `answer:${body.session_id}:${body.phone}`;
+      
+      // Store the answer
+      await db.put(answerKey, JSON.stringify({
         session_id: body.session_id,
         full_name: body.full_name,
         phone: body.phone,
@@ -75,27 +92,40 @@ export async function onRequest(context) {
         device_fingerprint: body.device_fingerprint || 'unknown',
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
       }));
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      // Update the index in session - CRITICAL: avoids list()
+      const sessionKey = `session:${body.session_id}`;
+      const sessionData = await db.get(sessionKey, { type: "json" });
+      if (sessionData) {
+        const answerKeys = sessionData.answerKeys || [];
+        if (!answerKeys.includes(answerKey)) {
+          answerKeys.push(answerKey);
+          sessionData.answerKeys = answerKeys;
+          await db.put(sessionKey, JSON.stringify(sessionData));
+        }
+      }
+      
+      return new Response(JSON.stringify({ success: true }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    // GET RESULTS (Admin Dashboard)
+    // GET RESULTS (Admin Dashboard) - NO list() CALLS
     if (path.includes('/results')) {
       const parts = path.split('/');
       const sessionId = parts[4];
       
-      // 1. Get Session Data
+      // 1. Get Session Data (includes answerKeys index)
       const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
       
-      // 2. Fetch list safely
-      const list = await db.list({ prefix: `answer:${sessionId}:` });
+      // 2. Use stored keys instead of list()
+      const answerKeys = sessionData?.answerKeys || [];
       const answers = [];
       
-      // 3. Loop through keys safely
-      if (list.keys && list.keys.length > 0) {
-        for (const key of list.keys) {
-          const ans = await db.get(key.name, { type: "json" });
-          if (ans) answers.push(ans);
-        }
+      // 3. Get each answer individually by key
+      for (const key of answerKeys) {
+        const ans = await db.get(key, { type: "json" });
+        if (ans) answers.push(ans);
       }
     
       // 4. Return the data with sorted comparison
@@ -106,7 +136,6 @@ export async function onRequest(context) {
         session: sessionData || { status: 'active' },
         stats: { 
           total: answers.length,
-          // FIX: Compare sorted answers for accuracy
           correct: answers.filter(a => {
             const studentAnswer = (a.answer || '').split(',').sort().join(',');
             return studentAnswer === correctAnswer;
