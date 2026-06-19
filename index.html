@@ -136,7 +136,8 @@
         let sessionId = null;
         let deviceFingerprint = '';
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
-    
+
+        // ─── Answer functions ──────────────────────────
         function addNumber(num) {
             if (currentAnswer.length < 4) {
                 currentAnswer.push(num);
@@ -144,14 +145,15 @@
                 if (displayAnswerEl) displayAnswerEl.textContent = currentAnswer.join(' , ');
             }
         }
-    
+
         function removeLast() {
             currentAnswer.pop();
             if (displayAnswerEl) {
                 displayAnswerEl.textContent = currentAnswer.length === 0 ? '...' : currentAnswer.join(' , ');
             }
         }
-    
+
+        // ─── Timer ──────────────────────────────────────
         function startTimer(duration) {
             if (timerInterval) clearInterval(timerInterval);
             remainingSeconds = duration;
@@ -172,17 +174,18 @@
                 }
             }, 1000);
         }
-    
+
         function resetUIForNewQuestion(duration) {
             currentAnswer = [];
             if (displayAnswerEl) displayAnswerEl.textContent = '...';
             document.getElementById('resultMessage').style.display = 'none';
             document.getElementById('submitBtn').disabled = false;
-            document.getElementById('resultDiv').style.display = 'none';   // hide old result
+            document.getElementById('resultDiv').style.display = 'none';
             document.getElementById('questionDiv').style.display = 'block';
             startTimer(duration);
         }
-    
+
+        // ─── Polling ──────────────────────────────────
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(async () => {
@@ -190,24 +193,23 @@
                     const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
                     if (!response.ok) return;
                     const data = await response.json();
-    
+
                     if (data.status === 'active') {
                         const newStartTime = data.start_time;
                         if (!lastStartTime || lastStartTime !== newStartTime) {
                             lastStartTime = newStartTime;
-                            // HIDE EVERYTHING, then show only question
+                            // Hide everything, then show only question
                             document.getElementById('waitingDiv').style.display = 'none';
                             document.getElementById('questionDiv').style.display = 'none';
                             document.getElementById('resultDiv').style.display = 'none';
                             resetUIForNewQuestion(data.duration || 60);
                         }
-                        // ensure timer runs only if question is visible
                         if (document.getElementById('questionDiv').style.display === 'block' &&
                             (!timerInterval || remainingSeconds <= 0)) {
                             startTimer(data.duration || 60);
                         }
                     } else {
-                        // waiting status
+                        // waiting
                         document.getElementById('questionDiv').style.display = 'none';
                         document.getElementById('resultDiv').style.display = 'none';
                         document.getElementById('waitingDiv').style.display = 'block';
@@ -217,7 +219,8 @@
                 }
             }, 2000);
         }
-    
+
+        // ─── Get IP ──────────────────────────────────
         async function getIP() {
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
@@ -225,7 +228,8 @@
                 return data.ip;
             } catch { return 'unknown'; }
         }
-    
+
+        // ─── Get Fingerprint ──────────────────────────
         async function getFingerprint() {
             try {
                 const fp = await FingerprintJS.load();
@@ -233,56 +237,121 @@
                 deviceFingerprint = result.visitorId;
             } catch { deviceFingerprint = 'unavailable'; }
         }
-    
-        // Validation functions … (unchanged)
-        function validateName() { /* same as original */ }
-        function validatePhone() { /* same as original */ }
-        function validateStudentId() { /* same as original */ }
-        function updateUI() { /* same as original */ }
-    
+
+        // ─── Validation functions ──────────────────────
+        function validateName() {
+            const nameInput = document.getElementById('nameInput');
+            const nameError = document.getElementById('nameError');
+            const val = nameInput.value.trim();
+            const regex = /^[a-zA-Z\s\-]+$/;
+            const isValid = regex.test(val) && val.length >= 6;
+            nameInput.classList.toggle('valid', isValid);
+            nameInput.classList.toggle('invalid', !isValid && val.length > 0);
+            nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function validatePhone() {
+            const phoneInput = document.getElementById('phoneInput');
+            const phoneError = document.getElementById('phoneError');
+            const val = phoneInput.value.trim();
+            const regex = /^(06|07)\d{8}$/;
+            const isValid = regex.test(val);
+            phoneInput.classList.toggle('valid', isValid);
+            phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
+            phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function validateStudentId() {
+            const studentIdInput = document.getElementById('studentIdInput');
+            const studentIdError = document.getElementById('studentIdError');
+            const val = studentIdInput.value.trim();
+            if (val === '') {
+                studentIdInput.classList.remove('valid', 'invalid');
+                studentIdError.style.display = 'none';
+                return true;
+            }
+            const isValid = val.length >= 2;
+            studentIdInput.classList.toggle('valid', isValid);
+            studentIdInput.classList.toggle('invalid', !isValid);
+            studentIdError.style.display = (!isValid) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function updateUI() {
+            const nameOk = validateName();
+            const phoneOk = validatePhone();
+            const studentIdOk = validateStudentId();
+            const consentCheck = document.getElementById('consentCheck');
+            const consentOk = consentCheck.checked;
+            const enterBtn = document.getElementById('enterBtn');
+            const validationStatus = document.getElementById('validationStatus');
+            const allOk = nameOk && phoneOk && studentIdOk && consentOk;
+
+            if (allOk) {
+                validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك الدخول';
+                validationStatus.className = 'validation-status ok';
+                enterBtn.disabled = false;
+                enterBtn.classList.add('ready');
+            } else {
+                let msg = '⚠️ يرجى تصحيح: ';
+                const issues = [];
+                if (!nameOk) issues.push('الاسم (أحرف لاتينية، 6 أحرف على الأقل)');
+                if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
+                if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
+                if (!consentOk) issues.push('الموافقة على جمع البيانات');
+                validationStatus.textContent = msg + issues.join('، ');
+                validationStatus.className = 'validation-status fail';
+                enterBtn.disabled = true;
+                enterBtn.classList.remove('ready');
+            }
+        }
+
+        // ─── Init ──────────────────────────────────────
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             sessionId = urlParams.get('session');
             displayAnswerEl = document.getElementById('displayAnswer');
-    
+
             if (!sessionId) {
-                document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح.</div>';
+                document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
                 return;
             }
             document.getElementById('displaySessionId').textContent = sessionId;
             getFingerprint();
-    
+
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
             const studentIdInput = document.getElementById('studentIdInput');
             const consentCheck = document.getElementById('consentCheck');
-    
+
             nameInput.addEventListener('input', updateUI);
             phoneInput.addEventListener('input', updateUI);
             studentIdInput.addEventListener('input', updateUI);
             consentCheck.addEventListener('change', updateUI);
             updateUI();
-    
+
             document.getElementById('enterBtn').addEventListener('click', async () => {
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
                 const studentId = studentIdInput.value.trim();
-    
+
                 if (!validateName() || !validatePhone() || !validateStudentId()) {
                     alert('يرجى تصحيح البيانات قبل المتابعة.');
                     return;
                 }
-    
+
                 localStorage.setItem('studentName', name);
                 localStorage.setItem('studentPhone', phone);
                 if (studentId) localStorage.setItem('studentId', studentId);
                 else localStorage.removeItem('studentId');
-    
+
                 document.getElementById('loginDiv').style.display = 'none';
                 document.getElementById('waitingDiv').style.display = 'block';
                 startPolling();
             });
-    
+
             document.getElementById('submitBtn').addEventListener('click', async function() {
                 if (currentAnswer.length === 0) {
                     alert('الرجاء اختيار رقم واحد على الأقل');
@@ -290,13 +359,13 @@
                 }
                 this.disabled = true;
                 this.textContent = '⏳ جاري الإرسال...';
-    
+
                 const answerStr = currentAnswer.join(',');
                 const name = localStorage.getItem('studentName');
                 const phone = localStorage.getItem('studentPhone');
                 const studentId = localStorage.getItem('studentId') || '';
                 const ipAddress = await getIP();
-    
+
                 try {
                     const response = await fetch(`${API_BASE}/questions/submit`, {
                         method: 'POST',
@@ -315,7 +384,6 @@
                     const result = await response.json();
                     if (result.success) {
                         clearInterval(timerInterval);
-                        // Hide all, show only result
                         document.getElementById('questionDiv').style.display = 'none';
                         document.getElementById('waitingDiv').style.display = 'none';
                         document.getElementById('resultDiv').style.display = 'block';
