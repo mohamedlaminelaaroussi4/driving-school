@@ -220,7 +220,7 @@
             checkQuestion();
             pollInterval = setInterval(async () => {
                 await checkQuestion();
-            }, 800);
+            }, 600); // ✅ Changed from 800 to 600
         }
 
         async function getIP() {
