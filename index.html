@@ -167,6 +167,7 @@
                 if (remainingSeconds <= 0) {
                     clearInterval(timerInterval);
                     document.getElementById('submitBtn').disabled = true;
+                    document.getElementById('submitBtn').textContent = '✅ تأكيد الإجابة';  // ✅ ADD THIS LINE
                     const resultMessage = document.getElementById('resultMessage');
                     resultMessage.style.display = 'block';
                     resultMessage.className = 'message error';
