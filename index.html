@@ -388,6 +388,7 @@
             });
 
             // ─── Submit button ──────────────────────────────────────
+            // ─── Submit button ──────────────────────────────────────
             document.getElementById('submitBtn').addEventListener('click', async function() {
                 if (currentAnswer.length === 0) {
                     alert('الرجاء اختيار رقم واحد على الأقل');
@@ -395,29 +396,35 @@
                 }
                 this.disabled = true;
                 this.textContent = '⏳ جاري الإرسال...';
-
+            
                 const answerStr = currentAnswer.join(',');
                 const name = localStorage.getItem('studentName');
                 const phone = localStorage.getItem('studentPhone');
                 const studentId = localStorage.getItem('studentId') || '';
                 const ipAddress = await getIP();
-
+            
+                const submitData = {
+                    session_id: sessionId,
+                    full_name: name,
+                    phone: phone,
+                    student_id: studentId,
+                    answer: answerStr,
+                    ip_address: ipAddress,
+                    user_agent: navigator.userAgent,
+                    device_fingerprint: deviceFingerprint
+                };
+                
+                console.log('[Q] Submitting answer:', JSON.stringify(submitData));
+            
                 try {
                     const response = await fetch(`${API_BASE}/questions/submit`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            session_id: sessionId,
-                            full_name: name,
-                            phone: phone,
-                            student_id: studentId,
-                            answer: answerStr,
-                            ip_address: ipAddress,
-                            user_agent: navigator.userAgent,
-                            device_fingerprint: deviceFingerprint
-                        })
+                        body: JSON.stringify(submitData)
                     });
                     const result = await response.json();
+                    console.log('[Q] Submit response:', result);
+                    
                     if (result.success) {
                         clearInterval(timerInterval);
                         // FIX: Properly transition to result screen
@@ -433,10 +440,12 @@
                         this.textContent = '✅ تأكيد الإجابة';
                     }
                 } catch (error) {
+                    console.error('[Q] Submit error:', error);
                     alert('خطأ في الاتصال: ' + error.message);
                     this.disabled = false;
                     this.textContent = '✅ تأكيد الإجابة';
                 }
+
             });
         };
     </script>
