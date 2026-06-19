@@ -52,29 +52,27 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // 5. GET RESULTS (Admin Panel Polling)
+// 5. GET RESULTS
+  // Admin calls: /api/questions/session/S42856/results
   if (path.includes('/results')) {
-    const sessionId = path.split('/')[3];
-    const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
+    const parts = path.split('/');
+    const sessionId = parts[4]; // Gets S42856
     
-    // Cloudflare KV list is limited, for this scale we fetch all answers manually
-    // In a production environment with 1000s of users, use a separate 'list' key
+    const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
     const list = await db.list({ prefix: `answer:${sessionId}:` });
+    
     const answers = [];
-    let correct = 0;
+    let correctCount = 0;
     
     for (const key of list.keys) {
       const ans = await db.get(key.name, { type: "json" });
       answers.push(ans);
-      // Logic: if student answer matches target (simplified comparison)
-      if (ans.answer === sessionData.correct_answer) correct++;
+      // Correct comparison logic
+      if (ans.answer === sessionData.correct_answer) correctCount++;
     }
 
     return new Response(JSON.stringify({ 
       session: sessionData, 
-      stats: { total: answers.length, correct, wrong: answers.length - correct, answers } 
+      stats: { total: answers.length, correct: correctCount, wrong: answers.length - correctCount, answers: answers } 
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
-
-  return new Response('Not Found', { status: 404 });
-}
