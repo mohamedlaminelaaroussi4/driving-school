@@ -45,10 +45,10 @@
 
             <div id="loginDiv">
                 <div class="form-group">
-                    <label>الاسم الكامل (بالأحرف اللاتينية فقط)</label>
+                    <label>الاسم الكامل (بالأحرف اللاتينية فقط، على الأقل 6 أحرف)</label>
                     <input type="text" id="nameInput" placeholder="Mohamed Ahmed" />
-                    <span class="hint">مثال: Mohamed Ahmed</span>
-                    <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط.</span>
+                    <span class="hint">مثال: Mohamed Ahmed (على الأقل 6 أحرف)</span>
+                    <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط، وعلى الأقل 6 أحرف.</span>
                 </div>
                 <div class="form-group">
                     <label>رقم الهاتف (يبدأ بـ 06 أو 07)</label>
@@ -57,8 +57,10 @@
                     <span class="error" id="phoneError">⚠️ يجب أن يبدأ الرقم بـ 06 أو 07 ويتكون من 10 أرقام.</span>
                 </div>
                 <div class="form-group">
-                    <label>رقم التسجيل (اختياري)</label>
+                    <label>رقم التسجيل (اختياري، على الأقل 2 أحرف)</label>
                     <input type="text" id="studentIdInput" placeholder="S001" />
+                    <span class="hint">مثال: S001 (اختياري، على الأقل 2 أحرف)</span>
+                    <span class="error" id="studentIdError">⚠️ إذا تم إدخال رقم التسجيل، يجب أن يكون على الأقل 2 أحرف.</span>
                 </div>
 
                 <div class="consent-box">
@@ -136,17 +138,20 @@
             // ─── DOM refs ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
+            const studentIdInput = document.getElementById('studentIdInput');
             const consentCheck = document.getElementById('consentCheck');
             const checkinBtn = document.getElementById('checkinBtn');
             const nameError = document.getElementById('nameError');
             const phoneError = document.getElementById('phoneError');
+            const studentIdError = document.getElementById('studentIdError');
             const validationStatus = document.getElementById('validationStatus');
 
             // ─── Validation functions ──────────────────────────────────
             function validateName() {
                 const val = nameInput.value.trim();
+                // Latin letters, spaces, hyphens, at least 6 characters
                 const regex = /^[a-zA-Z\s\-]+$/;
-                const isValid = regex.test(val) && val.length >= 2;
+                const isValid = regex.test(val) && val.length >= 6;
                 nameInput.classList.toggle('valid', isValid);
                 nameInput.classList.toggle('invalid', !isValid && val.length > 0);
                 nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
@@ -163,12 +168,30 @@
                 return isValid;
             }
 
+            function validateStudentId() {
+                const val = studentIdInput.value.trim();
+                // If empty, it's valid (optional field)
+                if (val === '') {
+                    studentIdInput.classList.remove('valid', 'invalid');
+                    studentIdError.style.display = 'none';
+                    return true;
+                }
+                // If provided, must be at least 2 characters
+                const isValid = val.length >= 2;
+                studentIdInput.classList.toggle('valid', isValid);
+                studentIdInput.classList.toggle('invalid', !isValid);
+                studentIdError.style.display = (!isValid) ? 'block' : 'none';
+                return isValid;
+            }
+
             function updateUI() {
                 const nameOk = validateName();
                 const phoneOk = validatePhone();
+                const studentIdOk = validateStudentId();
                 const consentOk = consentCheck.checked;
+                const allOk = nameOk && phoneOk && studentIdOk && consentOk;
 
-                if (nameOk && phoneOk && consentOk) {
+                if (allOk) {
                     validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك تسجيل الحضور';
                     validationStatus.className = 'validation-status ok';
                     checkinBtn.disabled = false;
@@ -176,8 +199,9 @@
                 } else {
                     let msg = '⚠️ يرجى تصحيح: ';
                     const issues = [];
-                    if (!nameOk) issues.push('الاسم (أحرف لاتينية)');
+                    if (!nameOk) issues.push('الاسم (أحرف لاتينية، 6 أحرف على الأقل)');
                     if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
+                    if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
                     if (!consentOk) issues.push('الموافقة على جمع البيانات');
                     validationStatus.textContent = msg + issues.join('، ');
                     validationStatus.className = 'validation-status fail';
@@ -189,6 +213,7 @@
             // ─── Attach events ─────────────────────────────────────────
             nameInput.addEventListener('input', updateUI);
             phoneInput.addEventListener('input', updateUI);
+            studentIdInput.addEventListener('input', updateUI);
             consentCheck.addEventListener('change', updateUI);
 
             // ─── Initial check ─────────────────────────────────────────
@@ -198,9 +223,10 @@
             document.getElementById('checkinBtn').addEventListener('click', async function() {
                 const fullName = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
-                const studentId = document.getElementById('studentIdInput').value.trim();
+                const studentId = studentIdInput.value.trim();
 
-                if (!validateName() || !validatePhone()) {
+                // Validate again (safety)
+                if (!validateName() || !validatePhone() || !validateStudentId()) {
                     alert('يرجى تصحيح البيانات قبل الإرسال.');
                     return;
                 }
