@@ -57,7 +57,7 @@
             <div id="waitingDiv" style="display:none;">
                 <div class="waiting">
                     <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
-                    <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً.</p>
+                    <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً بمجرد بدء السؤال.</p>
                 </div>
             </div>
 
@@ -140,7 +140,6 @@
                     const data = await response.json();
                     
                     if (data.error) {
-                        // If it's just "not active yet", we stay in the waiting loop quietly.
                         if (data.error === 'Question not yet active') return; 
                         
                         clearInterval(pollInterval);
@@ -151,7 +150,7 @@
                         return;
                     }
                     
-                    // Question Triggered! Switch from Waiting to Question UI
+                    // Triggered!
                     clearInterval(pollInterval);
                     document.getElementById('waitingDiv').style.display = 'none';
                     document.getElementById('questionDiv').style.display = 'block';
@@ -235,7 +234,7 @@
                     document.getElementById('questionDiv').style.display = 'none';
                     document.getElementById('resultDiv').style.display = 'block';
                     document.getElementById('finalMessage').className = 'message success';
-                    document.getElementById('finalMessage').textContent = `✅ تم تأكيد إجابتك: ( ${currentAnswer.join(', ')} )`;
+                    document.getElementById('finalMessage').textContent = `✅ تم تأكيد إجابتك بنجاح: ( ${currentAnswer.join(', ')} )`;
                 } else {
                     alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
                     this.disabled = false;
