@@ -12,15 +12,23 @@
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
         .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
+        .form-group .hint { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; display: block; }
+        .form-group .error { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+        .consent-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+        .consent-box label { display: flex; align-items: flex-start; gap: 0.75rem; font-weight: normal; color: #166534; cursor: pointer; }
+        .consent-box input[type="checkbox"] { width: 20px; height: 20px; margin-top: 0.1rem; flex-shrink: 0; }
+        .consent-box .consent-text { font-size: 0.95rem; line-height: 1.5; }
+        .consent-box .consent-text strong { color: #1a4d2e; }
         .btn-primary { width: 100%; padding: 1.2rem; background: #1e5f3a; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-primary:hover { background: #164d2e; }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-primary:hover:not(:disabled) { background: #164d2e; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; background: #94a3b8; }
         .message { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: bold; text-align: center; }
         .message.success { background: #dcfce7; color: #166534; }
         .message.error { background: #fee2e2; color: #991b1b; }
         .instruction { text-align: center; color: #64748b; font-size: 0.95rem; margin-bottom: 1rem; }
         .session-id { font-size: 0.8rem; color: #999; text-align: center; margin-top: 0.5rem; }
         .hidden { display: none; }
+        .data-notice { font-size: 0.85rem; color: #64748b; margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
     </style>
 </head>
 <body>
@@ -31,18 +39,33 @@
 
             <div id="loginDiv">
                 <div class="form-group">
-                    <label>الاسم الكامل</label>
-                    <input type="text" id="nameInput" placeholder="أدخل اسمك الكامل" required>
+                    <label>الاسم الكامل (بالأحرف اللاتينية فقط)</label>
+                    <input type="text" id="nameInput" placeholder="Mohamed Ahmed" required />
+                    <span class="hint">مثال: Mohamed Ahmed</span>
+                    <span class="error" id="nameError">⚠️ يجب أن يحتوي الاسم على أحرف لاتينية ومسافات فقط.</span>
                 </div>
                 <div class="form-group">
-                    <label>رقم الهاتف</label>
-                    <input type="tel" id="phoneInput" placeholder="أدخل رقم هاتفك" required>
+                    <label>رقم الهاتف (يبدأ بـ 06 أو 07)</label>
+                    <input type="tel" id="phoneInput" placeholder="0612345678" required dir="ltr" />
+                    <span class="hint">مثال: 0612345678</span>
+                    <span class="error" id="phoneError">⚠️ يجب أن يبدأ الرقم بـ 06 أو 07 ويتكون من 10 أرقام.</span>
                 </div>
                 <div class="form-group">
                     <label>رقم التسجيل (اختياري)</label>
-                    <input type="text" id="studentIdInput" placeholder="S001">
+                    <input type="text" id="studentIdInput" placeholder="S001" />
                 </div>
-                <button class="btn-primary" id="checkinBtn">✅ أنا هنا</button>
+
+                <div class="consent-box">
+                    <label>
+                        <input type="checkbox" id="consentCheck" />
+                        <span class="consent-text">
+                            <strong>أوافق على تسجيل بياناتي</strong> (الاسم، رقم الهاتف، عنوان IP، معلومات الجهاز) لأغراض تحليل الحضور.
+                            تُستخدم هذه المعلومات داخلياً فقط ولا تشارك مع أطراف خارجية.
+                        </span>
+                    </label>
+                </div>
+
+                <button class="btn-primary" id="checkinBtn" disabled>✅ أنا هنا</button>
                 <div id="resultMessage" class="message hidden"></div>
             </div>
 
@@ -52,30 +75,109 @@
             </div>
 
             <p class="session-id" id="sessionIdDisplay">رمز الجلسة: ---</p>
+            <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
+
+        let deviceFingerprint = '';
+
+        // ─── Generate device fingerprint ──────────────────────────────
+        async function getFingerprint() {
+            try {
+                const fp = await FingerprintJS.load();
+                const result = await fp.get();
+                deviceFingerprint = result.visitorId;
+                console.log('Device fingerprint:', deviceFingerprint);
+            } catch (e) {
+                deviceFingerprint = 'unavailable';
+                console.warn('Fingerprint not available');
+            }
+        }
+        getFingerprint();
+
+        // ─── Get IP address via ipify ──────────────────────────────────
+        async function getIP() {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                return data.ip;
+            } catch (e) {
+                console.warn('Could not get IP:', e);
+                return 'unknown';
+            }
+        }
 
         document.getElementById('sessionIdDisplay').textContent = `رمز الجلسة: ${sessionId || 'غير صالح'}`;
 
         if (!sessionId) {
             document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
             document.getElementById('checkinBtn').disabled = true;
+            return;
         }
 
+        // ─── Input validation ──────────────────────────────────────────
+        const nameInput = document.getElementById('nameInput');
+        const phoneInput = document.getElementById('phoneInput');
+        const consentCheck = document.getElementById('consentCheck');
+        const checkinBtn = document.getElementById('checkinBtn');
+        const nameError = document.getElementById('nameError');
+        const phoneError = document.getElementById('phoneError');
+
+        function validateName() {
+            const val = nameInput.value.trim();
+            // Latin letters, spaces, and hyphens allowed
+            const regex = /^[a-zA-Z\s\-]+$/;
+            if (!regex.test(val) || val.length < 2) {
+                nameError.style.display = 'block';
+                return false;
+            }
+            nameError.style.display = 'none';
+            return true;
+        }
+
+        function validatePhone() {
+            const val = phoneInput.value.trim();
+            // Must start with 06 or 07 and total 10 digits
+            const regex = /^(06|07)\d{8}$/;
+            if (!regex.test(val)) {
+                phoneError.style.display = 'block';
+                return false;
+            }
+            phoneError.style.display = 'none';
+            return true;
+        }
+
+        function checkForm() {
+            const nameOk = validateName();
+            const phoneOk = validatePhone();
+            const consentOk = consentCheck.checked;
+            checkinBtn.disabled = !(nameOk && phoneOk && consentOk);
+        }
+
+        nameInput.addEventListener('input', checkForm);
+        phoneInput.addEventListener('input', checkForm);
+        consentCheck.addEventListener('change', checkForm);
+
+        // ─── Submit ─────────────────────────────────────────────────────
         document.getElementById('checkinBtn').addEventListener('click', async function() {
-            const fullName = document.getElementById('nameInput').value.trim();
-            const phone = document.getElementById('phoneInput').value.trim();
+            const fullName = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
             const studentId = document.getElementById('studentIdInput').value.trim();
 
-            if (!fullName || !phone) {
-                alert('الاسم والهاتف إلزاميان');
+            // Validate again
+            if (!validateName() || !validatePhone()) {
+                alert('يرجى تصحيح البيانات قبل الإرسال.');
                 return;
             }
+
+            // Get IP address
+            const ipAddress = await getIP();
 
             this.disabled = true;
             this.textContent = '⏳ جاري التسجيل...';
@@ -88,7 +190,10 @@
                         session_id: sessionId,
                         full_name: fullName,
                         phone: phone,
-                        student_id: studentId || ''
+                        student_id: studentId || '',
+                        ip_address: ipAddress,
+                        user_agent: navigator.userAgent,
+                        device_fingerprint: deviceFingerprint
                     })
                 });
                 const data = await response.json();
