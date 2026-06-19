@@ -167,6 +167,9 @@
             }
             document.getElementById('displaySessionId').textContent = sessionId;
 
+            // ─── DOM refs ──────────────────────────────────────────────────
+            const displayAnswerEl = document.getElementById('displayAnswer');
+
             // ─── Validation ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
@@ -332,7 +335,7 @@
 
             function resetUIForNewQuestion(duration) {
                 currentAnswer = [];
-                document.getElementById('displayAnswer').textContent = '...';
+                displayAnswerEl.textContent = '...';
                 document.getElementById('resultMessage').style.display = 'none';
                 document.getElementById('submitBtn').disabled = false;
                 startTimer(duration);
@@ -343,17 +346,20 @@
                 if (currentAnswer.length < 4) {
                     currentAnswer.push(num);
                     currentAnswer.sort((a, b) => a - b);
-                    document.getElementById('displayAnswer').textContent = currentAnswer.join(' , ');
+                    // Update display
+                    displayAnswerEl.textContent = currentAnswer.join(' , ');
+                    console.log('[Q] Current answer:', currentAnswer);
                 }
             }
 
             function removeLast() {
                 currentAnswer.pop();
                 if (currentAnswer.length === 0) {
-                    document.getElementById('displayAnswer').textContent = '...';
+                    displayAnswerEl.textContent = '...';
                 } else {
-                    document.getElementById('displayAnswer').textContent = currentAnswer.join(' , ');
+                    displayAnswerEl.textContent = currentAnswer.join(' , ');
                 }
+                console.log('[Q] Current answer:', currentAnswer);
             }
 
             // ─── Submit answer ─────────────────────────────────────────────
