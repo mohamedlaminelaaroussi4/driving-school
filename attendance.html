@@ -91,47 +91,45 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
-        (function() {
-            // ─── API base ──────────────────────────────────────────────
+        (async function() {
             const API_BASE = 'https://driving-school-ad4.pages.dev/api';
             const urlParams = new URLSearchParams(window.location.search);
             const sessionId = urlParams.get('session');
             console.log('[Att] Session ID:', sessionId);
 
             let deviceFingerprint = '';
+            let cachedIP = null;
 
-            // ─── Fingerprint ──────────────────────────────────────────
+            // Pre‑fetch IP as early as possible
+            async function getIP() {
+                try {
+                    const res = await fetch('https://api.ipify.org?format=json');
+                    const data = await res.json();
+                    return data.ip;
+                } catch { return 'unknown'; }
+            }
+            cachedIP = await getIP();   // now we have it ready
+
             async function getFingerprint() {
                 try {
                     const fp = await FingerprintJS.load();
                     const result = await fp.get();
                     deviceFingerprint = result.visitorId;
-                    console.log('[Att] Fingerprint:', deviceFingerprint);
-                } catch (e) {
-                    deviceFingerprint = 'unavailable';
-                    console.warn('[Att] Fingerprint error:', e);
-                }
+                } catch { deviceFingerprint = 'unavailable'; }
             }
-            getFingerprint();
-
-            // ─── IP address ────────────────────────────────────────────
-            async function getIP() {
-                try {
-                    const res = await fetch('https://api.ipify.org?format=json');
-                    const data = await res.json();
-                    console.log('[Att] IP:', data.ip);
-                    return data.ip;
-                } catch (e) {
-                    console.warn('[Att] IP error:', e);
-                    return 'unknown';
-                }
-            }
+            await getFingerprint();
 
             document.getElementById('sessionIdDisplay').textContent = `رمز الجلسة: ${sessionId || 'غير صالح'}`;
 
             if (!sessionId) {
                 document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
-                document.getElementById('checkinBtn').disabled = true;
+                return;
+            }
+
+            // If already submitted for this session, show success directly
+            if (localStorage.getItem('attendanceSubmitted') === sessionId) {
+                document.getElementById('loginDiv').style.display = 'none';
+                document.getElementById('successDiv').style.display = 'block';
                 return;
             }
 
@@ -149,7 +147,6 @@
             // ─── Validation functions ──────────────────────────────────
             function validateName() {
                 const val = nameInput.value.trim();
-                // Latin letters, spaces, hyphens, at least 6 characters
                 const regex = /^[a-zA-Z\s\-]+$/;
                 const isValid = regex.test(val) && val.length >= 6;
                 nameInput.classList.toggle('valid', isValid);
@@ -170,13 +167,11 @@
 
             function validateStudentId() {
                 const val = studentIdInput.value.trim();
-                // If empty, it's valid (optional field)
                 if (val === '') {
                     studentIdInput.classList.remove('valid', 'invalid');
                     studentIdError.style.display = 'none';
                     return true;
                 }
-                // If provided, must be at least 2 characters
                 const isValid = val.length >= 2;
                 studentIdInput.classList.toggle('valid', isValid);
                 studentIdInput.classList.toggle('invalid', !isValid);
@@ -210,13 +205,10 @@
                 }
             }
 
-            // ─── Attach events ─────────────────────────────────────────
             nameInput.addEventListener('input', updateUI);
             phoneInput.addEventListener('input', updateUI);
             studentIdInput.addEventListener('input', updateUI);
             consentCheck.addEventListener('change', updateUI);
-
-            // ─── Initial check ─────────────────────────────────────────
             updateUI();
 
             // ─── Submit ─────────────────────────────────────────────────
@@ -225,16 +217,16 @@
                 const phone = phoneInput.value.trim();
                 const studentId = studentIdInput.value.trim();
 
-                // Validate again (safety)
                 if (!validateName() || !validatePhone() || !validateStudentId()) {
                     alert('يرجى تصحيح البيانات قبل الإرسال.');
                     return;
                 }
 
-                const ipAddress = await getIP();
-
                 this.disabled = true;
                 this.textContent = '⏳ جاري التسجيل...';
+
+                // Use the pre‑fetched IP – no network delay here
+                const ipAddress = cachedIP;
 
                 try {
                     const response = await fetch(`${API_BASE}/attendance/checkin`, {
@@ -253,6 +245,8 @@
                     const data = await response.json();
                     console.log('[Att] Server response:', data);
                     if (data.success) {
+                        // Remember submission so refresh stays on success
+                        localStorage.setItem('attendanceSubmitted', sessionId);
                         document.getElementById('loginDiv').style.display = 'none';
                         document.getElementById('successDiv').style.display = 'block';
                     } else {
