@@ -277,23 +277,30 @@
                 pollInterval = setInterval(async () => {
                     try {
                         const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
-                        if (!response.ok) return;
+                        if (!response.ok) {
+                            console.log('[Q] Poll failed:', response.status);
+                            return;
+                        }
                         const data = await response.json();
+                        console.log('[Q] Poll data:', data);
 
                         if (data.status === 'active') {
                             const newStartTime = data.start_time;
                             if (!lastStartTime || lastStartTime !== newStartTime) {
                                 lastStartTime = newStartTime;
-                                if (document.getElementById('questionDiv').style.display === 'none') {
-                                    document.getElementById('waitingDiv').style.display = 'none';
-                                    document.getElementById('questionDiv').style.display = 'block';
-                                } else {
-                                    resetUIForNewQuestion(data.duration || 60);
-                                }
-                                if (!timerInterval || remainingSeconds <= 0) {
-                                    startTimer(data.duration || 60);
-                                }
+                                // Show question
+                                document.getElementById('waitingDiv').style.display = 'none';
+                                document.getElementById('questionDiv').style.display = 'block';
+                                resetUIForNewQuestion(data.duration || 60);
                             }
+                            // Ensure timer is running
+                            if (!timerInterval || remainingSeconds <= 0) {
+                                startTimer(data.duration || 60);
+                            }
+                        } else {
+                            // Keep waiting
+                            document.getElementById('waitingDiv').style.display = 'block';
+                            document.getElementById('questionDiv').style.display = 'none';
                         }
                     } catch (e) {
                         console.warn('Polling error:', e);
@@ -335,7 +342,7 @@
             function addNumber(num) {
                 if (currentAnswer.length < 4) {
                     currentAnswer.push(num);
-                    currentAnswer.sort((a, b) => a - b); // keep sorted
+                    currentAnswer.sort((a, b) => a - b);
                     document.getElementById('displayAnswer').textContent = currentAnswer.join(' , ');
                 }
             }
