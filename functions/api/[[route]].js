@@ -2,7 +2,8 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const path = url.pathname;
-  
+  const db = env.DB; 
+
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -11,30 +12,23 @@ export async function onRequest(context) {
 
   if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-  // Debugging: Log the path being hit
-  console.log("Requested Path:", path);
-
-  try {
-    // Force a simple response to see if the API is working at all
-    if (path === '/api/questions/start') {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        session_id: 'DEBUG-' + Date.now(),
-        message: 'API is responding correctly'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ error: 'Path not found: ' + path }), { 
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-  } catch (err) {
-    return new Response(JSON.stringify({ error: 'Server Error', details: err.message }), { 
-      status: 500, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+  // 1. GET CURRENT QUESTION
+  if (path === '/api/questions/current') {
+    const sessionId = url.searchParams.get('session');
+    const session = await db.get(`session:${sessionId}`);
+    if (!session) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: corsHeaders });
+    
+    return new Response(session, { headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
   }
+
+  // 2. SUBMIT ANSWER
+  if (path === '/api/questions/submit') {
+    const body = await request.json();
+    // Logic to save answer to KV
+    await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify(body));
+    
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+  }
+
+  return new Response('Not Found', { status: 404 });
 }
