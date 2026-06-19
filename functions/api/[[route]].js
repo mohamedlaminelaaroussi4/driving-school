@@ -44,14 +44,25 @@ export async function onRequest(context) {
     return new Response(session || JSON.stringify({ status: 'waiting' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // 4. SUBMIT ANSWER
+  // 4. SUBMIT ANSWER – store all fields
   if (path === '/api/questions/submit') {
     const body = await request.json();
-    await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify(body));
+    // Store all fields including IP, user agent, fingerprint
+    await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify({
+      session_id: body.session_id,
+      full_name: body.full_name,
+      phone: body.phone,
+      student_id: body.student_id || '',
+      answer: body.answer,
+      ip_address: body.ip_address || 'unknown',
+      user_agent: body.user_agent || 'unknown',
+      device_fingerprint: body.device_fingerprint || 'unknown',
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+    }));
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // 5. GET RESULTS
+  // 5. GET RESULTS – return all fields
   if (path.includes('/results')) {
     const parts = path.split('/');
     const sessionId = parts[4];
@@ -65,6 +76,7 @@ export async function onRequest(context) {
       keys.push(key.name);
       const ans = await db.get(key.name, { type: "json" });
       answers.push(ans);
+      // Compare answer string (as stored)
       if (ans.answer === sessionData.correct_answer) correctCount++;
     }
 
@@ -81,7 +93,6 @@ export async function onRequest(context) {
 
   // 6. ATTENDANCE START - Forward to Flask
   if (path === '/api/attendance/start') {
-    // Replace with your actual Flask server IP
     const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/start';
     try {
       const response = await fetch(flaskUrl, { method: 'POST' });
@@ -99,7 +110,6 @@ export async function onRequest(context) {
   if (path === '/api/attendance/checkin') {
     const body = await request.json();
     
-    // Extract all fields including the new ones
     const session_id = body.session_id;
     const full_name = body.full_name || '';
     const phone = body.phone || '';
@@ -115,7 +125,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Forward to Flask with ALL fields
     const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/checkin';
     try {
       const response = await fetch(flaskUrl, {
@@ -147,7 +156,6 @@ export async function onRequest(context) {
         });
       }
       
-      // Check for duplicates
       if (sessionData.attendees) {
         const exists = sessionData.attendees.some(a => a.phone === phone || (student_id && a.student_id === student_id));
         if (exists) {
@@ -190,7 +198,6 @@ export async function onRequest(context) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     } catch (error) {
-      // Fallback: Get from KV
       const sessionData = await db.get(`attendance:${sessionId}`, { type: 'json' });
       if (!sessionData) {
         return new Response(JSON.stringify({ error: 'Session not found' }), { 
