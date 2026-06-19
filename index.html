@@ -1,93 +1,240 @@
-<div class="card" id="startForm">
-            <h3>بدء سؤال جديد</h3>
-            <div class="form-group">
-                <label>الإجابة الصحيحة (يمكنك كتابة 1,2,3)</label>
-                <input type="text" id="correctAnswer" placeholder="مثال: 1,3 أو 2" dir="ltr" />
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>إدارة الأسئلة المباشرة</title>
+    <style>
+        body { background: #f5f7fa; margin: 0; padding: 2rem 4rem; font-family: 'Tajawal', system-ui, sans-serif; }
+        .q-container { max-width: 100%; margin: 0; }
+        .card { background: white; border-radius: 1rem; padding: 1.5rem 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+        .card h3 { color: #1a4d2e; margin-bottom: 1rem; border-bottom: 2px solid #e6a017; padding-bottom: 0.5rem; }
+        .btn { padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; font-size: 1rem; width: 100%; margin-bottom: 0.5rem; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #1e5f3a; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #164d2e; }
+        .btn-success { background: #e6a017; color: #fff; }
+        .btn-success:hover:not(:disabled) { background: #d49315; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+        .btn-sm { padding: 0.3rem 0.8rem; font-size: 0.85rem; width: auto; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 600; color: #333; margin-bottom: 0.3rem; }
+        .form-group input { width: 100%; padding: 0.6rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; box-sizing: border-box; }
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .stat-card { background: white; padding: 1.2rem; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .stat-card .num { font-size: 2.2rem; font-weight: 800; color: #1a4d2e; }
+        .stat-card .num.green { color: #166534; }
+        .stat-card .num.red { color: #dc2626; }
+        .qr-container { display: flex; justify-content: center; margin: 1rem 0; }
+        .share-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .link-box { direction: ltr; text-align: left; background: #f3f4f6; padding: 0.5rem; border-radius: 4px; word-break: break-all; font-family: monospace; }
+        .table-wrap { background: white; border-radius: 1rem; overflow: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.8rem 1rem; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
+        th { background: #f0fdf4; color: #1e5f3a; font-weight: 700; }
+        .status-badge { display: inline-block; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+        .status-badge.correct { background: #dcfce7; color: #166534; }
+        .status-badge.wrong { background: #fee2e2; color: #991b1b; }
+        .empty-state { text-align: center; padding: 2rem; color: #888; }
+        .num-grid { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; max-width: 300px; margin: 0 auto; }
+        .num-btn { background: #333; color: white; border: 2px solid #555; padding: 1.2rem 0.9rem; border-radius: 10px; font-size: 1.8rem; font-weight: 800; cursor: pointer; transition: 0.1s; font-family: inherit; width: 100%; }
+        .num-btn.selected { background: #e6a017; color: #000; border-color: #e6a017; }
+        .selected-box { background: #222; border: 1px solid #e6a017; border-radius: 8px; padding: 0.8rem; width: 100%; max-width: 300px; margin: 0.5rem auto; text-align: center; color: white; min-height: 80px; display: flex; flex-direction: column; gap: 0.3rem; }
+        .selected-label { font-size: 0.9rem; color: #aaa; }
+        .selected-numbers { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+        .selected-num { background: #e6a017; color: #000; font-weight: 800; padding: 0.2rem 0.7rem; border-radius: 50px; font-size: 1.2rem; }
+        .step-box { border: 2px dashed #1e5f3a; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; background: #f0fdf4; }
+    </style>
+</head>
+<body>
+    <div class="q-container">
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card"><div class="num" id="totalAnswers">0</div><div>📊 الإجابات</div></div>
+            <div class="stat-card"><div class="num green" id="correctAnswers">0</div><div>✅ صحيحة</div></div>
+            <div class="stat-card"><div class="num red" id="wrongAnswers">0</div><div>❌ خاطئة</div></div>
+        </div>
+
+        <div class="card" id="sessionCard">
+            <h3>📍 رمز الجلسة (الخطوة 1: دع الطلاب يمسحون الكود)</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:1rem;">
+                <div style="flex:2; min-width:250px;">
+                    <p><strong>رابط الجلسة:</strong></p>
+                    <div class="link-box" id="sessionLink"></div>
+                    <div class="share-buttons">
+                        <button class="btn btn-primary btn-sm" onclick="copyLink()">📋 نسخ الرابط</button>
+                    </div>
+                </div>
             </div>
+            <div class="qr-container" id="qrContainer"></div>
+            
+            <button class="btn btn-primary" id="createSessionBtn">1️⃣ فتح جلسة جديدة وتوليد الكود</button>
+        </div>
+
+        <div class="card" id="questionControls">
+            <h3>📝 التحكم بالسؤال (الخطوة 2: أطلق السؤال)</h3>
+            
             <div class="form-group">
                 <label>مدة الإجابة (ثانية)</label>
                 <input type="number" id="duration" value="60" />
             </div>
-            <button class="btn btn-primary" id="startQuestionBtn">▶️ بدء السؤال</button>
+
+            <div style="margin-bottom:1rem;">
+                <label>الإجابة الصحيحة (اختر الأرقام المناسبة)</label>
+                <div class="selected-box">
+                    <span class="selected-label">الأرقام المختارة</span>
+                    <div class="selected-numbers" id="correctSelectedNumbers"></div>
+                </div>
+                <div class="num-grid" style="margin-top: 10px;">
+                    <button class="num-btn" data-num="1">1</button>
+                    <button class="num-btn" data-num="2">2</button>
+                    <button class="num-btn" data-num="3">3</button>
+                    <button class="num-btn" data-num="4">4</button>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <p style="margin-top:0; color: #166534; font-weight: bold;">تأكد من اختيار الإجابة الصحيحة أعلاه قبل إطلاق السؤال للطلاب.</p>
+                <button class="btn btn-success" id="triggerQuestionBtn" disabled>2️⃣ إرسال السؤال وبدء العداد للطلاب ▶️</button>
+            </div>
+            
+            <button class="btn btn-danger" id="endSessionBtn" disabled>⏹️ إنهاء الجلسة</button>
         </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script src="../static/js/data.js"></script>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>الطالب</th><th>الهاتف</th><th>الإجابة</th><th>النتيجة</th></tr></thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyState" class="empty-state">بانتظار إجابات الطلاب...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
-        console.log('Questions page loaded - API_BASE:', typeof API_BASE !== 'undefined' ? API_BASE : 'NOT DEFINED');
+        // --- CONFIGURATION ---
+        const API_BASE = 'https://driving-school.mohamedlaminelaaroussi4.workers.dev/api';
+        const PUBLIC_BASE = 'https://driving-school.mohamedlaminelaaroussi4.pages.dev'; // 👈 CHANGE THIS to your Cloudflare Pages URL
+        // ---------------------
 
+        const BASE_LINK = PUBLIC_BASE + '/question.html';
         let currentSessionId = null;
-        let questionLink = '';
+        let sessionLink = BASE_LINK;
         let refreshInterval = null;
-        let currentCorrectAnswerArray = []; // لتخزين الإجابة كمصفوفة للمقارنة اللاحقة
+        let correctSelection = new Set();
 
-        document.getElementById('startQuestionBtn').addEventListener('click', async function() {
-            const rawAnswer = document.getElementById('correctAnswer').value.trim();
-            const duration = parseInt(document.getElementById('duration').value) || 60;
-            
-            if (!rawAnswer) { alert('الرجاء إدخال الإجابة الصحيحة'); return; }
+        function updateDisplay(link) {
+            sessionLink = link;
+            document.getElementById('sessionLink').textContent = link;
+            const container = document.getElementById('qrContainer');
+            container.innerHTML = '';
+            new QRCode(container, { text: link, width: 200, height: 200 });
+        }
 
-            // تحويل النص المدخل (مثل "1, 3") إلى مصفوفة أرقام [1, 3] وتجاهل الفراغات
-            currentCorrectAnswerArray = rawAnswer.split(',')
-                .map(n => parseInt(n.trim()))
-                .filter(n => !isNaN(n))
-                .sort((a, b) => a - b);
-
-            if (currentCorrectAnswerArray.length === 0) {
-                alert('الرجاء إدخال أرقام صحيحة (مثال: 1,3)'); return;
-            }
-
+        // STEP 1: Create Session ONLY
+        document.getElementById('createSessionBtn').addEventListener('click', async function() {
             try {
-                const response = await fetch(`${API_BASE}/questions/start`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    // نرسل الإجابة كمصفوفة للسيرفر
-                    body: JSON.stringify({ question: "سؤال صوري", correct_answer: currentCorrectAnswerArray, duration })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    currentSessionId = data.session_id;
-                    const baseUrl = 'https://driving-school.mohamedlaminelaaroussi4.workers.dev';
-                    questionLink = `${baseUrl}/question.html?session=${currentSessionId}`;
-                    
-                    document.getElementById('sessionCode').textContent = currentSessionId;
-                    document.getElementById('sessionInfo').style.display = 'block';
-                    document.getElementById('startForm').style.display = 'none';
-                    
-                    document.getElementById('qrContainer').innerHTML = '';
-                    new QRCode(document.getElementById('qrContainer'), { 
-                        text: questionLink, width: 220, height: 220, colorDark : "#1a4d2e", colorLight : "#ffffff"
-                    });
-                    
-                    if (refreshInterval) clearInterval(refreshInterval);
-                    refreshInterval = setInterval(fetchResults, 3000);
-                    await fetchResults();
-                } else { alert('خطأ: ' + (data.error || 'حدث خطأ')); }
-            } catch (error) { alert('خطأ في الاتصال: ' + error.message); }
+                this.textContent = '⏳ جاري الإنشاء...';
+                this.disabled = true;
+
+                const res = await fetch(`${API_BASE}/questions/start`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (!data.success) throw new Error(data.error);
+                
+                currentSessionId = data.session_id;
+                const newLink = `${PUBLIC_BASE}/question.html?session=${currentSessionId}`;
+                updateDisplay(newLink);
+                
+                document.getElementById('triggerQuestionBtn').disabled = false;
+                document.getElementById('endSessionBtn').disabled = false;
+                this.textContent = '✅ تم فتح الجلسة';
+                
+                alert('✅ تم فتح الجلسة بنجاح! اطلب من الطلاب مسح الكود وتسجيل بياناتهم. هم الآن في غرفة الانتظار.');
+            } catch (error) {
+                alert('❌ فشل إنشاء الجلسة: ' + error.message);
+                this.disabled = false;
+                this.textContent = '1️⃣ فتح جلسة جديدة وتوليد الكود';
+            }
         });
 
-        document.getElementById('endQuestionBtn').addEventListener('click', function() {
-            if (confirm('هل أنت متأكد من إنهاء هذا السؤال؟')) {
+        // STEP 2: Trigger Question
+        document.getElementById('triggerQuestionBtn').addEventListener('click', async function() {
+            if (!currentSessionId) return alert('يجب فتح الجلسة أولاً.');
+            if (correctSelection.size === 0) return alert('الرجاء اختيار الأرقام الصحيحة أولاً.');
+            
+            const duration = parseInt(document.getElementById('duration').value) || 60;
+            const correctAnswer = Array.from(correctSelection).sort((a,b) => a-b).join(',');
+
+            try {
+                this.textContent = '⏳ جاري الإطلاق...';
+                this.disabled = true;
+
+                const res = await fetch(`${API_BASE}/questions/session/${currentSessionId}/trigger`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: '', correct_answer: correctAnswer, duration: duration })
+                });
+                const data = await res.json();
+                
+                if (!data.success) throw new Error(data.error);
+
+                alert('🚀 تم إطلاق السؤال! العداد يعمل الآن لدى الطلاب بشكل موحد.');
+                this.textContent = '🚀 تم إرسال السؤال بنجاح!';
+                
                 if (refreshInterval) clearInterval(refreshInterval);
-                refreshInterval = null;
-                document.getElementById('sessionInfo').style.display = 'none';
-                document.getElementById('startForm').style.display = 'block';
+                refreshInterval = setInterval(fetchResults, 3000);
+
+            } catch (error) {
+                alert('❌ فشل الإطلاق: ' + error.message);
+                this.disabled = false;
+                this.textContent = '2️⃣ إرسال السؤال وبدء العداد للطلاب ▶️';
+            }
+        });
+
+        function updateCorrectDisplay() {
+            const nums = Array.from(correctSelection).sort((a,b) => a-b);
+            document.getElementById('correctSelectedNumbers').innerHTML = nums.map(n => `<span class="selected-num">${n}</span>`).join('');
+            document.querySelectorAll('.num-btn').forEach(btn => {
+                const num = parseInt(btn.getAttribute('data-num'));
+                btn.classList.toggle('selected', correctSelection.has(num));
+            });
+        }
+
+        document.querySelectorAll('.num-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const num = parseInt(btn.getAttribute('data-num'));
+                correctSelection.has(num) ? correctSelection.delete(num) : correctSelection.add(num);
+                updateCorrectDisplay();
+            });
+        });
+
+        document.getElementById('endSessionBtn').addEventListener('click', function() {
+            if (confirm('هل أنت متأكد من إنهاء هذه الجلسة؟')) {
+                if (refreshInterval) clearInterval(refreshInterval);
                 currentSessionId = null;
+                updateDisplay(BASE_LINK);
+                
+                document.getElementById('createSessionBtn').disabled = false;
+                document.getElementById('createSessionBtn').textContent = '1️⃣ فتح جلسة جديدة وتوليد الكود';
+                document.getElementById('triggerQuestionBtn').disabled = true;
+                document.getElementById('triggerQuestionBtn').textContent = '2️⃣ إرسال السؤال وبدء العداد للطلاب ▶️';
+                this.disabled = true;
+                correctSelection.clear();
+                updateCorrectDisplay();
                 document.getElementById('resultsBody').innerHTML = '';
                 document.getElementById('emptyState').style.display = 'block';
-                document.getElementById('totalAnswers').textContent = '0';
-                document.getElementById('correctAnswers').textContent = '0';
-                document.getElementById('wrongAnswers').textContent = '0';
-                document.getElementById('correctAnswer').value = '';
+                
+                alert('تم إنهاء الجلسة.');
             }
         });
 
         async function fetchResults() {
             if (!currentSessionId) return;
             try {
-                const response = await fetch(`${API_BASE}/questions/session/${currentSessionId}/results`);
-                const data = await response.json();
-                if (data.error) { console.error(data.error); return; }
+                const res = await fetch(`${API_BASE}/questions/session/${currentSessionId}/results`);
+                if (!res.ok) return;
+                const data = await res.json();
                 renderResults(data);
             } catch (e) { console.error('Error fetching results:', e); }
         }
@@ -95,37 +242,32 @@
         function renderResults(data) {
             const stats = data.stats;
             const answers = stats.answers || [];
-            
-            // تحويل الإجابة الصحيحة القادمة من السيرفر إلى نص للمقارنة
-            const correctArr = Array.isArray(data.session.correct_answer) ? data.session.correct_answer : currentCorrectAnswerArray;
-            const correctStr = correctArr.sort((a, b) => a - b).join(', ');
-
             document.getElementById('totalAnswers').textContent = stats.total;
             document.getElementById('correctAnswers').textContent = stats.correct;
             document.getElementById('wrongAnswers').textContent = stats.wrong;
             
             const tbody = document.getElementById('resultsBody');
             const empty = document.getElementById('emptyState');
+            
             if (answers.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
             empty.style.display = 'none';
-            
             tbody.innerHTML = answers.map((a, idx) => {
-                // التأكد من أن إجابة الطالب مصفوفة قبل مقارنتها
-                const studentAnsArr = Array.isArray(a.answer) ? a.answer : String(a.answer).split(',').map(n => parseInt(n.trim()));
-                const studentStr = studentAnsArr.sort((a,b) => a - b).join(', ');
-                
-                const isCorrect = studentStr === correctStr;
+                const isCorrect = a.answer.trim() === data.session.correct_answer.trim();
                 return `<tr>
                     <td>${idx+1}</td>
                     <td><strong>${a.full_name}</strong></td>
-                    <td dir="ltr">${a.phone}</td>
-                    <td dir="ltr" style="font-size:1.2rem; font-weight:bold;">${studentStr}</td>
+                    <td>${a.phone}</td>
+                    <td>${a.answer}</td>
                     <td><span class="status-badge ${isCorrect ? 'correct' : 'wrong'}">${isCorrect ? '✅ صحيح' : '❌ خاطئ'}</span></td>
                 </tr>`;
             }).join('');
         }
 
-        // دوال النسخ والواتساب بقيت كما هي...
-        function copyLink() { /* ... */ }
-        function shareWhatsApp() { /* ... */ }
+        function copyLink() {
+            navigator.clipboard.writeText(sessionLink).then(() => alert('✅ تم نسخ الرابط'));
+        }
+
+        updateDisplay(BASE_LINK);
     </script>
+</body>
+</html>
