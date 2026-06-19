@@ -5,17 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
     <title>السؤال المباشر</title>
     <style>
-        /* Same styles as before – keep them */
         body { background: #f5f7fa; font-family: 'Tajawal', 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 1rem; }
         .container { max-width: 600px; margin: 0 auto; }
         .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         h1 { color: #1a4d2e; text-align: center; margin-bottom: 1rem; font-size: 1.5rem; }
+        
+        /* Modern Input Form for Mobile */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
+        .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
+        
         .timer { font-size: 3rem; font-weight: 800; color: #e6a017; text-align: center; margin: 0.5rem 0; }
         .timer.warning { color: #dc2626; animation: pulse 1s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .display-box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 15px; font-size: 2.5rem; text-align: center; min-height: 45px; margin: 1.5rem 0; color: #1a4d2e; font-weight: bold; direction: ltr; }
         .keypad { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 1.5rem; }
-        .key-btn { padding: 20px; font-size: 1.8rem; font-weight: bold; border-radius: 12px; border: 2px solid #1e5f3a; background: white; color: #1e5f3a; cursor: pointer; transition: 0.2s; }
+        .key-btn { padding: 20px; font-size: 1.8rem; font-weight: bold; border-radius: 12px; border: 2px solid #1e5f3a; background: white; color: #1e5f3a; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
         .key-btn:active { background: #dcfce7; transform: scale(0.95); }
         .delete-btn { grid-column: span 2; background: #fee2e2; color: #991b1b; border-color: #f87171; font-size: 1.2rem; padding: 15px; }
         .delete-btn:active { background: #fecaca; }
@@ -33,9 +38,22 @@
     <div class="container">
         <div class="card">
             <h1>📝 أجب عن السؤال</h1>
-            <p class="instruction">انظر للشاشة، ثم اختر أرقام الإجابة الصحيحة</p>
+            
+            <div id="loginDiv" style="display:none;">
+                <p class="instruction">يرجى إدخال بياناتك للمشاركة في السؤال</p>
+                <div class="form-group">
+                    <label>الاسم الكامل</label>
+                    <input type="text" id="nameInput" placeholder="أدخل اسمك هنا" required>
+                </div>
+                <div class="form-group">
+                    <label>رقم الهاتف</label>
+                    <input type="tel" id="phoneInput" placeholder="أدخل رقم هاتفك" required>
+                </div>
+                <button class="btn-primary" onclick="saveStudentData()">دخول</button>
+            </div>
 
             <div id="questionDiv" style="display:none;">
+                <p class="instruction">انظر للشاشة، ثم اختر أرقام الإجابة الصحيحة</p>
                 <div class="timer" id="timerDisplay">--</div>
                 <div class="display-box" id="displayAnswer">...</div>
                 <div class="keypad">
@@ -49,7 +67,7 @@
                 <div id="resultMessage" class="message" style="display:none;"></div>
             </div>
 
-            <div id="waitingDiv">
+            <div id="waitingDiv" style="display:none;">
                 <div class="waiting">⏳ في انتظار بدء السؤال من المدرب...</div>
             </div>
 
@@ -60,11 +78,7 @@
     </div>
 
     <script>
-        // ─── API base: use the same Cloudflare domain ──────────────────
-        // The Worker will forward /api/* to the Flask server on the VPS.
         const API_BASE = 'https://driving-school.mohamedlaminelaaroussi4.workers.dev/api';
-        // ────────────────────────────────────────────────────────────────
-
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
 
@@ -73,24 +87,45 @@
         let currentAnswer = [];
         let pollInterval = null;
 
-        if (!sessionId) {
-            document.getElementById('waitingDiv').innerHTML = '<div class="waiting error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
-        } else {
+        // Initialize App
+        window.onload = function() {
+            if (!sessionId) {
+                // If they scan the QR code BEFORE the admin starts the question
+                document.getElementById('waitingDiv').style.display = 'block';
+                document.getElementById('waitingDiv').innerHTML = '<div class="waiting error">⚠️ لم يبدأ السؤال بعد. يرجى مسح الكود الجديد بمجرد أن يطلقه المدرب.</div>';
+                return;
+            }
             checkStudentData();
-            pollQuestion();
+        };
+
+        // Replaces prompt() with clean HTML UI
+        function checkStudentData() {
+            const savedName = localStorage.getItem('studentName');
+            const savedPhone = localStorage.getItem('studentPhone');
+
+            if (!savedName || !savedPhone) {
+                document.getElementById('loginDiv').style.display = 'block';
+            } else {
+                document.getElementById('waitingDiv').style.display = 'block';
+                pollQuestion();
+            }
         }
 
-        function checkStudentData() {
-            if (!localStorage.getItem('studentName') || !localStorage.getItem('studentPhone')) {
-                const fullName = prompt('أهلاً بك! يرجى إدخال اسمك الكامل:');
-                const phone = prompt('أدخل رقم هاتفك:');
-                if (fullName && phone) {
-                    localStorage.setItem('studentName', fullName);
-                    localStorage.setItem('studentPhone', phone);
-                } else {
-                    document.getElementById('waitingDiv').innerHTML = '<div class="waiting error">⚠️ يجب إدخال الاسم والهاتف للمتابعة.</div>';
-                }
+        function saveStudentData() {
+            const name = document.getElementById('nameInput').value.trim();
+            const phone = document.getElementById('phoneInput').value.trim();
+
+            if (name === '' || phone === '') {
+                alert('يرجى إدخال الاسم ورقم الهاتف');
+                return;
             }
+
+            localStorage.setItem('studentName', name);
+            localStorage.setItem('studentPhone', phone);
+            
+            document.getElementById('loginDiv').style.display = 'none';
+            document.getElementById('waitingDiv').style.display = 'block';
+            pollQuestion();
         }
 
         async function pollQuestion() {
@@ -102,14 +137,17 @@
                     const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
                     if (!response.ok) return;
                     const data = await response.json();
+                    
                     if (data.error) {
                         if (data.error === 'Question not yet active' || data.error === 'session required' || data.error === 'Session not found') {
-                            return;
+                            return; // Keep polling quietly
                         }
                         clearInterval(pollInterval);
                         waitingDiv.innerHTML = `<div class="waiting error">⚠️ ${data.error}</div>`;
                         return;
                     }
+                    
+                    // Success! Question is live
                     clearInterval(pollInterval);
                     waitingDiv.style.display = 'none';
                     questionDiv.style.display = 'block';
@@ -180,10 +218,6 @@
 
             let fullName = localStorage.getItem('studentName');
             let phone = localStorage.getItem('studentPhone');
-            if (!fullName || !phone) {
-                checkStudentData();
-                return;
-            }
 
             this.disabled = true;
             this.textContent = '⏳ جاري الإرسال...';
