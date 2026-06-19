@@ -107,11 +107,11 @@
                 <div class="timer" id="timerDisplay">--</div>
                 <div class="display-box" id="displayAnswer">...</div>
                 <div class="keypad">
-                    <button class="key-btn" onclick="window.addNumber(1)">1</button>
-                    <button class="key-btn" onclick="window.addNumber(2)">2</button>
-                    <button class="key-btn" onclick="window.addNumber(3)">3</button>
-                    <button class="key-btn" onclick="window.addNumber(4)">4</button>
-                    <button class="key-btn delete-btn" onclick="window.removeLast()">⌫ تراجع (مسح)</button>
+                    <button class="key-btn" onclick="addNumber(1)">1</button>
+                    <button class="key-btn" onclick="addNumber(2)">2</button>
+                    <button class="key-btn" onclick="addNumber(3)">3</button>
+                    <button class="key-btn" onclick="addNumber(4)">4</button>
+                    <button class="key-btn delete-btn" onclick="removeLast()">⌫ تراجع (مسح)</button>
                 </div>
                 <button id="submitBtn" class="btn-primary">✅ تأكيد الإجابة</button>
                 <div id="resultMessage" class="message" style="display:none;"></div>
@@ -127,65 +127,213 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
-        // ─── Global variables ──────────────────────────────────────────
+        // ─── GLOBAL FUNCTIONS ──────────────────────────────────────────
+        // These must be in the global scope so the onclick attributes can find them
+        
         let currentAnswer = [];
-        const displayAnswerEl = document.getElementById('displayAnswer');
+        let displayAnswerEl = null;
+        let timerInterval = null;
+        let remainingSeconds = 0;
+        let pollInterval = null;
+        let lastStartTime = null;
+        let sessionId = null;
+        let deviceFingerprint = '';
+        const API_BASE = 'https://driving-school-ad4.pages.dev/api';
 
-        // ─── Answer functions (exposed globally) ──────────────────────
-        window.addNumber = function(num) {
+        // ─── Answer functions ──────────────────────────────────────────
+        function addNumber(num) {
             console.log('[Q] Adding number:', num);
             if (currentAnswer.length < 4) {
                 currentAnswer.push(num);
                 currentAnswer.sort((a, b) => a - b);
-                displayAnswerEl.textContent = currentAnswer.join(' , ');
+                if (displayAnswerEl) {
+                    displayAnswerEl.textContent = currentAnswer.join(' , ');
+                }
                 console.log('[Q] Current answer:', currentAnswer);
             }
-        };
+        }
 
-        window.removeLast = function() {
+        function removeLast() {
             console.log('[Q] Removing last number');
             currentAnswer.pop();
             if (currentAnswer.length === 0) {
-                displayAnswerEl.textContent = '...';
+                if (displayAnswerEl) displayAnswerEl.textContent = '...';
             } else {
-                displayAnswerEl.textContent = currentAnswer.join(' , ');
+                if (displayAnswerEl) displayAnswerEl.textContent = currentAnswer.join(' , ');
             }
             console.log('[Q] Current answer:', currentAnswer);
-        };
+        }
 
-        // ─── Main app ──────────────────────────────────────────────────
-        (function() {
-            const API_BASE = 'https://driving-school-ad4.pages.dev/api';
+        // ─── Timer ──────────────────────────────────────────────────────
+        function startTimer(duration) {
+            if (timerInterval) clearInterval(timerInterval);
+            remainingSeconds = duration;
+            const timerDisplay = document.getElementById('timerDisplay');
+            timerDisplay.textContent = remainingSeconds;
+            timerDisplay.classList.remove('warning');
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                timerDisplay.textContent = remainingSeconds;
+                if (remainingSeconds <= 10) timerDisplay.classList.add('warning');
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    document.getElementById('submitBtn').disabled = true;
+                    const resultMessage = document.getElementById('resultMessage');
+                    resultMessage.style.display = 'block';
+                    resultMessage.className = 'message error';
+                    resultMessage.textContent = '⏰ انتهى الوقت!';
+                }
+            }, 1000);
+        }
+
+        function resetUIForNewQuestion(duration) {
+            currentAnswer = [];
+            if (displayAnswerEl) displayAnswerEl.textContent = '...';
+            document.getElementById('resultMessage').style.display = 'none';
+            document.getElementById('submitBtn').disabled = false;
+            startTimer(duration);
+        }
+
+        // ─── Polling ──────────────────────────────────────────────────
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
+                    if (!response.ok) {
+                        console.log('[Q] Poll failed:', response.status);
+                        return;
+                    }
+                    const data = await response.json();
+                    console.log('[Q] Poll data:', data);
+
+                    if (data.status === 'active') {
+                        const newStartTime = data.start_time;
+                        if (!lastStartTime || lastStartTime !== newStartTime) {
+                            lastStartTime = newStartTime;
+                            // Show question
+                            document.getElementById('waitingDiv').style.display = 'none';
+                            document.getElementById('questionDiv').style.display = 'block';
+                            resetUIForNewQuestion(data.duration || 60);
+                        }
+                        // Ensure timer is running
+                        if (!timerInterval || remainingSeconds <= 0) {
+                            startTimer(data.duration || 60);
+                        }
+                    } else {
+                        // Keep waiting
+                        document.getElementById('waitingDiv').style.display = 'block';
+                        document.getElementById('questionDiv').style.display = 'none';
+                    }
+                } catch (e) {
+                    console.warn('Polling error:', e);
+                }
+            }, 2000);
+        }
+
+        // ─── Get IP ──────────────────────────────────────────────────
+        async function getIP() {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                console.log('[Q] IP:', data.ip);
+                return data.ip;
+            } catch (e) {
+                console.warn('[Q] IP error:', e);
+                return 'unknown';
+            }
+        }
+
+        // ─── Get Fingerprint ──────────────────────────────────────────
+        async function getFingerprint() {
+            try {
+                const fp = await FingerprintJS.load();
+                const result = await fp.get();
+                deviceFingerprint = result.visitorId;
+                console.log('[Q] Fingerprint:', deviceFingerprint);
+            } catch (e) {
+                deviceFingerprint = 'unavailable';
+                console.warn('[Q] Fingerprint error:', e);
+            }
+        }
+
+        // ─── Validation functions ──────────────────────────────────
+        function validateName() {
+            const nameInput = document.getElementById('nameInput');
+            const nameError = document.getElementById('nameError');
+            const val = nameInput.value.trim();
+            const regex = /^[a-zA-Z\s\-]+$/;
+            const isValid = regex.test(val) && val.length >= 6;
+            nameInput.classList.toggle('valid', isValid);
+            nameInput.classList.toggle('invalid', !isValid && val.length > 0);
+            nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function validatePhone() {
+            const phoneInput = document.getElementById('phoneInput');
+            const phoneError = document.getElementById('phoneError');
+            const val = phoneInput.value.trim();
+            const regex = /^(06|07)\d{8}$/;
+            const isValid = regex.test(val);
+            phoneInput.classList.toggle('valid', isValid);
+            phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
+            phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function validateStudentId() {
+            const studentIdInput = document.getElementById('studentIdInput');
+            const studentIdError = document.getElementById('studentIdError');
+            const val = studentIdInput.value.trim();
+            if (val === '') {
+                studentIdInput.classList.remove('valid', 'invalid');
+                studentIdError.style.display = 'none';
+                return true;
+            }
+            const isValid = val.length >= 2;
+            studentIdInput.classList.toggle('valid', isValid);
+            studentIdInput.classList.toggle('invalid', !isValid);
+            studentIdError.style.display = (!isValid) ? 'block' : 'none';
+            return isValid;
+        }
+
+        function updateUI() {
+            const nameOk = validateName();
+            const phoneOk = validatePhone();
+            const studentIdOk = validateStudentId();
+            const consentCheck = document.getElementById('consentCheck');
+            const consentOk = consentCheck.checked;
+            const enterBtn = document.getElementById('enterBtn');
+            const validationStatus = document.getElementById('validationStatus');
+            const allOk = nameOk && phoneOk && studentIdOk && consentOk;
+
+            if (allOk) {
+                validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك الدخول';
+                validationStatus.className = 'validation-status ok';
+                enterBtn.disabled = false;
+                enterBtn.classList.add('ready');
+            } else {
+                let msg = '⚠️ يرجى تصحيح: ';
+                const issues = [];
+                if (!nameOk) issues.push('الاسم (أحرف لاتينية، 6 أحرف على الأقل)');
+                if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
+                if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
+                if (!consentOk) issues.push('الموافقة على جمع البيانات');
+                validationStatus.textContent = msg + issues.join('، ');
+                validationStatus.className = 'validation-status fail';
+                enterBtn.disabled = true;
+                enterBtn.classList.remove('ready');
+            }
+        }
+
+        // ─── Init ──────────────────────────────────────────────────
+        window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
-            const sessionId = urlParams.get('session');
+            sessionId = urlParams.get('session');
             console.log('[Q] Session ID:', sessionId);
 
-            let deviceFingerprint = '';
-
-            async function getFingerprint() {
-                try {
-                    const fp = await FingerprintJS.load();
-                    const result = await fp.get();
-                    deviceFingerprint = result.visitorId;
-                    console.log('[Q] Fingerprint:', deviceFingerprint);
-                } catch (e) {
-                    deviceFingerprint = 'unavailable';
-                    console.warn('[Q] Fingerprint error:', e);
-                }
-            }
-            getFingerprint();
-
-            async function getIP() {
-                try {
-                    const res = await fetch('https://api.ipify.org?format=json');
-                    const data = await res.json();
-                    console.log('[Q] IP:', data.ip);
-                    return data.ip;
-                } catch (e) {
-                    console.warn('[Q] IP error:', e);
-                    return 'unknown';
-                }
-            }
+            displayAnswerEl = document.getElementById('displayAnswer');
 
             if (!sessionId) {
                 document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
@@ -194,76 +342,14 @@
             }
             document.getElementById('displaySessionId').textContent = sessionId;
 
-            // ─── Validation ──────────────────────────────────────────────
+            // Get fingerprint
+            getFingerprint();
+
+            // ─── Validation events ──────────────────────────────────
             const nameInput = document.getElementById('nameInput');
             const phoneInput = document.getElementById('phoneInput');
             const studentIdInput = document.getElementById('studentIdInput');
             const consentCheck = document.getElementById('consentCheck');
-            const enterBtn = document.getElementById('enterBtn');
-            const nameError = document.getElementById('nameError');
-            const phoneError = document.getElementById('phoneError');
-            const studentIdError = document.getElementById('studentIdError');
-            const validationStatus = document.getElementById('validationStatus');
-
-            function validateName() {
-                const val = nameInput.value.trim();
-                const regex = /^[a-zA-Z\s\-]+$/;
-                const isValid = regex.test(val) && val.length >= 6;
-                nameInput.classList.toggle('valid', isValid);
-                nameInput.classList.toggle('invalid', !isValid && val.length > 0);
-                nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
-                return isValid;
-            }
-
-            function validatePhone() {
-                const val = phoneInput.value.trim();
-                const regex = /^(06|07)\d{8}$/;
-                const isValid = regex.test(val);
-                phoneInput.classList.toggle('valid', isValid);
-                phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
-                phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
-                return isValid;
-            }
-
-            function validateStudentId() {
-                const val = studentIdInput.value.trim();
-                if (val === '') {
-                    studentIdInput.classList.remove('valid', 'invalid');
-                    studentIdError.style.display = 'none';
-                    return true;
-                }
-                const isValid = val.length >= 2;
-                studentIdInput.classList.toggle('valid', isValid);
-                studentIdInput.classList.toggle('invalid', !isValid);
-                studentIdError.style.display = (!isValid) ? 'block' : 'none';
-                return isValid;
-            }
-
-            function updateUI() {
-                const nameOk = validateName();
-                const phoneOk = validatePhone();
-                const studentIdOk = validateStudentId();
-                const consentOk = consentCheck.checked;
-                const allOk = nameOk && phoneOk && studentIdOk && consentOk;
-
-                if (allOk) {
-                    validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك الدخول';
-                    validationStatus.className = 'validation-status ok';
-                    enterBtn.disabled = false;
-                    enterBtn.classList.add('ready');
-                } else {
-                    let msg = '⚠️ يرجى تصحيح: ';
-                    const issues = [];
-                    if (!nameOk) issues.push('الاسم (أحرف لاتينية، 6 أحرف على الأقل)');
-                    if (!phoneOk) issues.push('رقم الهاتف (06/07 + 8 أرقام)');
-                    if (!studentIdOk) issues.push('رقم التسجيل (2 أحرف على الأقل)');
-                    if (!consentOk) issues.push('الموافقة على جمع البيانات');
-                    validationStatus.textContent = msg + issues.join('، ');
-                    validationStatus.className = 'validation-status fail';
-                    enterBtn.disabled = true;
-                    enterBtn.classList.remove('ready');
-                }
-            }
 
             nameInput.addEventListener('input', updateUI);
             phoneInput.addEventListener('input', updateUI);
@@ -271,7 +357,7 @@
             consentCheck.addEventListener('change', updateUI);
             updateUI();
 
-            // ─── Enter ────────────────────────────────────────────────────
+            // ─── Enter button ──────────────────────────────────────
             document.getElementById('enterBtn').addEventListener('click', async function() {
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
@@ -292,79 +378,7 @@
                 startPolling();
             });
 
-            // ─── Polling ────────────────────────────────────────────────────
-            let pollInterval = null;
-            let lastStartTime = null;
-            let timerInterval = null;
-            let remainingSeconds = 0;
-
-            function startPolling() {
-                if (pollInterval) clearInterval(pollInterval);
-                pollInterval = setInterval(async () => {
-                    try {
-                        const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
-                        if (!response.ok) {
-                            console.log('[Q] Poll failed:', response.status);
-                            return;
-                        }
-                        const data = await response.json();
-                        console.log('[Q] Poll data:', data);
-
-                        if (data.status === 'active') {
-                            const newStartTime = data.start_time;
-                            if (!lastStartTime || lastStartTime !== newStartTime) {
-                                lastStartTime = newStartTime;
-                                // Show question
-                                document.getElementById('waitingDiv').style.display = 'none';
-                                document.getElementById('questionDiv').style.display = 'block';
-                                resetUIForNewQuestion(data.duration || 60);
-                            }
-                            // Ensure timer is running
-                            if (!timerInterval || remainingSeconds <= 0) {
-                                startTimer(data.duration || 60);
-                            }
-                        } else {
-                            // Keep waiting
-                            document.getElementById('waitingDiv').style.display = 'block';
-                            document.getElementById('questionDiv').style.display = 'none';
-                        }
-                    } catch (e) {
-                        console.warn('Polling error:', e);
-                    }
-                }, 2000);
-            }
-
-            // ─── Timer ──────────────────────────────────────────────────────
-            function startTimer(duration) {
-                if (timerInterval) clearInterval(timerInterval);
-                remainingSeconds = duration;
-                const timerDisplay = document.getElementById('timerDisplay');
-                timerDisplay.textContent = remainingSeconds;
-                timerDisplay.classList.remove('warning');
-                timerInterval = setInterval(() => {
-                    remainingSeconds--;
-                    timerDisplay.textContent = remainingSeconds;
-                    if (remainingSeconds <= 10) timerDisplay.classList.add('warning');
-                    if (remainingSeconds <= 0) {
-                        clearInterval(timerInterval);
-                        document.getElementById('submitBtn').disabled = true;
-                        const resultMessage = document.getElementById('resultMessage');
-                        resultMessage.style.display = 'block';
-                        resultMessage.className = 'message error';
-                        resultMessage.textContent = '⏰ انتهى الوقت!';
-                    }
-                }, 1000);
-            }
-
-            function resetUIForNewQuestion(duration) {
-                currentAnswer = [];
-                displayAnswerEl.textContent = '...';
-                document.getElementById('resultMessage').style.display = 'none';
-                document.getElementById('submitBtn').disabled = false;
-                startTimer(duration);
-            }
-
-            // ─── Submit answer ─────────────────────────────────────────────
+            // ─── Submit button ──────────────────────────────────────
             document.getElementById('submitBtn').addEventListener('click', async function() {
                 if (currentAnswer.length === 0) {
                     alert('الرجاء اختيار رقم واحد على الأقل');
@@ -413,7 +427,7 @@
                     this.textContent = '✅ تأكيد الإجابة';
                 }
             });
-        })();
+        };
     </script>
 </body>
 </html>
