@@ -192,6 +192,22 @@
                 if (!response.ok) return;
                 const data = await response.json();
 
+                // If already submitted for this exact question, don't show it again
+                const submittedStart = localStorage.getItem('lastSubmittedStartTime');
+                if (data.status === 'active' && submittedStart && data.start_time == submittedStart) {
+                    // Show the previous result instead of the question
+                    if (document.getElementById('resultDiv').style.display !== 'block') {
+                        document.getElementById('waitingDiv').style.display = 'none';
+                        document.getElementById('questionDiv').style.display = 'none';
+                        document.getElementById('resultDiv').style.display = 'block';
+                        const finalMessage = document.getElementById('finalMessage');
+                        finalMessage.className = 'message success';
+                        const savedAnswer = localStorage.getItem('lastSubmittedAnswer') || '';
+                        finalMessage.textContent = `✅ تم تسجيل إجابتك مسبقاً: ( ${savedAnswer} )`;
+                    }
+                    return;
+                }
+
                 if (data.status === 'active') {
                     const newStartTime = data.start_time;
                     if (!lastStartTime || lastStartTime !== newStartTime) {
@@ -220,7 +236,7 @@
             checkQuestion();
             pollInterval = setInterval(async () => {
                 await checkQuestion();
-            }, 600); // ✅ Changed from 800 to 600
+            }, 600);
         }
 
         async function getIP() {
@@ -401,6 +417,13 @@
                     const result = await response.json();
                     if (result.success) {
                         clearInterval(timerInterval);
+
+                        // Remember that we submitted for this question
+                        if (lastStartTime) {
+                            localStorage.setItem('lastSubmittedStartTime', lastStartTime);
+                            localStorage.setItem('lastSubmittedAnswer', answerStr);
+                        }
+
                         document.getElementById('questionDiv').style.display = 'none';
                         document.getElementById('waitingDiv').style.display = 'none';
                         document.getElementById('resultDiv').style.display = 'block';
