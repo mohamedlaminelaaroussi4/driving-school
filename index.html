@@ -196,6 +196,7 @@
         }
 
         // ─── Polling ──────────────────────────────────────────────────
+        // ─── Polling ──────────────────────────────────────────────────
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(async () => {
@@ -207,26 +208,31 @@
                     }
                     const data = await response.json();
                     console.log('[Q] Poll data:', data);
-
+        
                     if (data.status === 'active') {
                         const newStartTime = data.start_time;
                         if (!lastStartTime || lastStartTime !== newStartTime) {
                             lastStartTime = newStartTime;
-                            // FIX: Reset UI properly for new question
+                            console.log('[Q] New question detected! Resetting UI');
+                            
+                            // FIX: First hide ALL screens, then show only question
+                            document.getElementById('waitingDiv').style.display = 'none';
+                            document.getElementById('resultDiv').style.display = 'none';
+                            document.getElementById('questionDiv').style.display = 'block';
+                            
                             resetUIForNewQuestion(data.duration || 60);
                         }
-                        // Ensure timer is running if question is active
-                        if (!timerInterval || remainingSeconds <= 0) {
-                            // Only start timer if questionDiv is visible (not already submitted)
-                            if (document.getElementById('questionDiv').style.display !== 'none') {
-                                startTimer(data.duration || 60);
-                            }
+                        // Only restart timer if question is visible and timer isn't running
+                        if (document.getElementById('questionDiv').style.display === 'block' && 
+                            (!timerInterval || remainingSeconds <= 0)) {
+                            startTimer(data.duration || 60);
                         }
                     } else {
-                        // FIX: If status is 'waiting', show waiting screen and hide others
-                        document.getElementById('waitingDiv').style.display = 'block';
+                        // FIX: If status is 'waiting', ONLY show waiting screen
+                        console.log('[Q] Status is waiting, showing waiting screen');
                         document.getElementById('questionDiv').style.display = 'none';
                         document.getElementById('resultDiv').style.display = 'none';
+                        document.getElementById('waitingDiv').style.display = 'block';
                     }
                 } catch (e) {
                     console.warn('Polling error:', e);
