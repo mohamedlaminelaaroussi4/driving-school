@@ -82,170 +82,65 @@
         </div>
     </div>
 
-    <script>
-        const API_BASE = 'https://driving-school.mohamedlaminelaaroussi4.workers.dev/api';
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('session');
+   <script>
+    const API_BASE = 'https://driving-school.mohamedlaminelaaroussi4.pages.dev/api';
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session');
 
-        let timerInterval = null;
-        let remainingSeconds = 0;
-        let currentAnswer = [];
-        let pollInterval = null;
+    let pollInterval = null;
 
-        window.onload = function() {
-            if (!sessionId) {
-                document.getElementById('resultDiv').style.display = 'block';
-                document.getElementById('finalMessage').className = 'message error';
-                document.getElementById('finalMessage').textContent = '⚠️ لم يتم فتح الجلسة بعد. يرجى مسح الكود من الشاشة مرة أخرى عندما يطلبه المدرب.';
-                return;
-            }
-            checkStudentData();
-        };
-
-        function checkStudentData() {
-            const savedName = localStorage.getItem('studentName');
-            const savedPhone = localStorage.getItem('studentPhone');
-
-            if (!savedName || !savedPhone) {
-                document.getElementById('loginDiv').style.display = 'block';
-            } else {
-                document.getElementById('loginDiv').style.display = 'none';
-                document.getElementById('waitingDiv').style.display = 'block';
-                pollQuestion();
-            }
+    window.onload = function() {
+        if (!sessionId) {
+            document.getElementById('resultDiv').style.display = 'block';
+            document.getElementById('finalMessage').textContent = '⚠️ لم يتم العثور على الجلسة.';
+            return;
         }
+        checkStudentData();
+    };
 
-        function saveStudentData() {
-            const name = document.getElementById('nameInput').value.trim();
-            const phone = document.getElementById('phoneInput').value.trim();
-
-            if (!name || !phone) {
-                alert('يرجى إدخال الاسم ورقم الهاتف');
-                return;
-            }
-
-            localStorage.setItem('studentName', name);
-            localStorage.setItem('studentPhone', phone);
-            
-            document.getElementById('loginDiv').style.display = 'none';
+    function checkStudentData() {
+        if (!localStorage.getItem('studentName')) {
+            document.getElementById('loginDiv').style.display = 'block';
+        } else {
             document.getElementById('waitingDiv').style.display = 'block';
             pollQuestion();
         }
+    }
 
-        async function pollQuestion() {
-            pollInterval = setInterval(async () => {
-                try {
-                    const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
-                    if (!response.ok) return;
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        if (data.error === 'Question not yet active') return; 
-                        
-                        clearInterval(pollInterval);
-                        document.getElementById('waitingDiv').style.display = 'none';
-                        document.getElementById('resultDiv').style.display = 'block';
-                        document.getElementById('finalMessage').className = 'message error';
-                        document.getElementById('finalMessage').textContent = '⚠️ ' + data.error;
-                        return;
-                    }
-                    
-                    // Triggered!
+    async function pollQuestion() {
+        pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                
+                if (data.status === 'active') {
                     clearInterval(pollInterval);
                     document.getElementById('waitingDiv').style.display = 'none';
                     document.getElementById('questionDiv').style.display = 'block';
-                    
-                    remainingSeconds = data.remaining || data.duration || 60;
-                    updateTimerDisplay();
+                    remainingSeconds = data.duration || 60;
                     startTimer();
-                } catch (e) { console.warn('Polling error:', e); }
-            }, 2000);
-        }
-
-        function addNumber(num) {
-            if (!currentAnswer.includes(num)) {
-                currentAnswer.push(num);
-                currentAnswer.sort((a, b) => a - b);
-                updateDisplay();
-            }
-        }
-
-        function removeLast() {
-            if (currentAnswer.length > 0) {
-                currentAnswer.pop();
-                updateDisplay();
-            }
-        }
-
-        function updateDisplay() {
-            const displayObj = document.getElementById('displayAnswer');
-            displayObj.textContent = currentAnswer.length > 0 ? currentAnswer.join(' , ') : '...';
-        }
-
-        function startTimer() {
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                remainingSeconds--;
-                updateTimerDisplay();
-                if (remainingSeconds <= 0) {
-                    clearInterval(timerInterval);
-                    document.getElementById('submitBtn').disabled = true;
-                    document.getElementById('timerDisplay').textContent = '0';
-                    showError('⏰ انتهى الوقت المخصص للإجابة.');
                 }
-            }, 1000);
-        }
+            } catch (e) { console.warn('Polling error:', e); }
+        }, 2000);
+    }
 
-        function updateTimerDisplay() {
-            const el = document.getElementById('timerDisplay');
-            el.textContent = remainingSeconds;
-            if (remainingSeconds <= 10) el.classList.add('warning');
-        }
-
-        function showError(msg) {
-            const msgDiv = document.getElementById('resultMessage');
-            msgDiv.style.display = 'block';
-            msgDiv.className = 'message error';
-            msgDiv.textContent = msg;
-            document.getElementById('submitBtn').disabled = true;
-        }
-
-        document.getElementById('submitBtn').addEventListener('click', async function() {
-            if (currentAnswer.length === 0) return alert('الرجاء اختيار رقم واحد على الأقل كإجابة');
-
-            this.disabled = true;
-            this.textContent = '⏳ جاري الإرسال...';
-
-            try {
-                const response = await fetch(`${API_BASE}/questions/submit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        full_name: localStorage.getItem('studentName'),
-                        phone: localStorage.getItem('studentPhone'),
-                        answer: currentAnswer.join(',')
-                    })
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    clearInterval(timerInterval);
-                    document.getElementById('questionDiv').style.display = 'none';
-                    document.getElementById('resultDiv').style.display = 'block';
-                    document.getElementById('finalMessage').className = 'message success';
-                    document.getElementById('finalMessage').textContent = `✅ تم تأكيد إجابتك بنجاح: ( ${currentAnswer.join(', ')} )`;
-                } else {
-                    alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
-                    this.disabled = false;
-                    this.textContent = '✅ تأكيد الإجابة';
-                }
-            } catch (error) {
-                alert('خطأ في الاتصال. حاول مجدداً.');
-                this.disabled = false;
-                this.textContent = '✅ تأكيد الإجابة';
-            }
+    // UPDATE: Ensure the submit function uses the correct path
+    document.getElementById('submitBtn').addEventListener('click', async function() {
+        this.disabled = true;
+        const response = await fetch(`${API_BASE}/questions/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: sessionId,
+                full_name: localStorage.getItem('studentName'),
+                phone: localStorage.getItem('studentPhone'),
+                answer: currentAnswer.join(',')
+            })
         });
-    </script>
+        const result = await response.json();
+        if (result.success) alert('تم الإرسال بنجاح!');
+    });
+</script>
 </body>
 </html>
