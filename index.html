@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
     <title>السؤال المباشر</title>
     <style>
-        /* ─── Exactly the same styles as attendance ─── */
+        /* ─── Same styles as attendance ─── */
         body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
-        .container { max-width: 500px; margin: 0 auto; }
+        .container { max-width: 600px; margin: 0 auto; }
         .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         h1 { color: #1a4d2e; text-align: center; margin-bottom: 1rem; font-size: 1.5rem; }
 
@@ -65,7 +65,7 @@
         <div class="card">
             <h1>📝 السؤال المباشر</h1>
 
-            <!-- Login / Registration Div – identical to attendance -->
+            <!-- Login / Registration Div -->
             <div id="loginDiv">
                 <p class="instruction">مرحباً بك! يرجى إدخال بياناتك للمشاركة</p>
 
@@ -106,7 +106,7 @@
                 <div id="loginMessage" class="message hidden"></div>
             </div>
 
-            <!-- Waiting Div (unchanged) -->
+            <!-- Waiting Div -->
             <div id="waitingDiv" style="display:none;">
                 <div class="waiting">
                     <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
@@ -115,7 +115,7 @@
                 </div>
             </div>
 
-            <!-- Question Div (unchanged) -->
+            <!-- Question Div -->
             <div id="questionDiv" style="display:none;">
                 <p class="instruction" style="color: #dc2626; font-weight: bold;">أجب الآن! انظر للشاشة واختر الإجابة الصحيحة</p>
                 <div class="timer" id="timerDisplay">--</div>
@@ -131,7 +131,7 @@
                 <div id="resultMessage" class="message" style="display:none;"></div>
             </div>
 
-            <!-- Result Div (unchanged) -->
+            <!-- Result Div -->
             <div id="resultDiv" style="display:none;">
                 <div id="finalMessage" class="message"></div>
             </div>
@@ -142,7 +142,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
-        // ─── Configuration (same as attendance) ──────────────────────
+        // ─── API base ────────────────────────────────────────────────
         const API_BASE = 'https://driving-school-ad4.pages.dev/api';
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
