@@ -1,233 +1,75 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
-    <title>السؤال المباشر</title>
-    <style>
-        body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        h1 { color: #1a4d2e; text-align: center; margin-bottom: 1rem; font-size: 1.5rem; }
-        .form-group { margin-bottom: 1rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
-        .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
-        .timer { font-size: 3rem; font-weight: 800; color: #e6a017; text-align: center; margin: 0.5rem 0; }
-        .timer.warning { color: #dc2626; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .display-box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 15px; font-size: 2.5rem; text-align: center; min-height: 45px; margin: 1.5rem 0; color: #1a4d2e; font-weight: bold; direction: ltr; }
-        .keypad { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 1.5rem; }
-        .key-btn { padding: 20px; font-size: 1.8rem; font-weight: bold; border-radius: 12px; border: 2px solid #1e5f3a; background: white; color: #1e5f3a; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
-        .key-btn:active { background: #dcfce7; transform: scale(0.95); }
-        .delete-btn { grid-column: span 2; background: #fee2e2; color: #991b1b; border-color: #f87171; font-size: 1.2rem; padding: 15px; }
-        .btn-primary { width: 100%; padding: 1.2rem; background: #1e5f3a; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-primary:hover { background: #164d2e; }
-        .btn-primary:disabled { opacity: 0.6; cursor: pointer; }
-        .message { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: bold; text-align: center; }
-        .message.success { background: #dcfce7; color: #166534; }
-        .message.error { background: #fee2e2; color: #991b1b; }
-        .instruction { text-align: center; color: #64748b; font-size: 0.95rem; margin-bottom: 1rem; }
-        .waiting { text-align: center; color: #1e5f3a; padding: 2rem; font-size: 1.2rem; font-weight: bold; background: #f0fdf4; border-radius: 8px; border: 1px dashed #1e5f3a; }
-        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(30,95,58,0.3); border-radius: 50%; border-top-color: #1e5f3a; animation: spin 1s ease-in-out infinite; margin-right: 10px; vertical-align: middle; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .error-box { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h1>📝 السؤال المباشر</h1>
-            
-            <div id="loginDiv" style="display:none;">
-                <p class="instruction">مرحباً بك! يرجى إدخال بياناتك للمشاركة</p>
-                <div class="form-group">
-                    <label>الاسم الكامل</label>
-                    <input type="text" id="nameInput" placeholder="أدخل اسمك هنا" required>
-                </div>
-                <div class="form-group">
-                    <label>رقم الهاتف</label>
-                    <input type="tel" id="phoneInput" placeholder="أدخل رقم هاتفك" required>
-                </div>
-                <button class="btn-primary" onclick="saveStudentData()">دخول للانتظار</button>
-            </div>
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const db = env.DB;
 
-            <div id="waitingDiv" style="display:none;">
-                <div class="waiting">
-                    <div class="spinner"></div> بانتظار إطلاق السؤال من المدرب...
-                    <p style="font-size: 0.9rem; font-weight: normal; color: #666; margin-top: 10px;">يرجى الانتباه للشاشة الرئيسية، سيبدأ العداد هنا تلقائياً بمجرد بدء السؤال.</p>
-                </div>
-            </div>
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
-            <div id="questionDiv" style="display:none;">
-                <p class="instruction" style="color: #dc2626; font-weight: bold;">أجب الآن! انظر للشاشة واختر الإجابة الصحيحة</p>
-                <div class="timer" id="timerDisplay">--</div>
-                <div class="display-box" id="displayAnswer">...</div>
-                <div class="keypad">
-                    <button class="key-btn" onclick="addNumber(1)">1</button>
-                    <button class="key-btn" onclick="addNumber(2)">2</button>
-                    <button class="key-btn" onclick="addNumber(3)">3</button>
-                    <button class="key-btn" onclick="addNumber(4)">4</button>
-                    <button class="key-btn delete-btn" onclick="removeLast()">⌫ تراجع (مسح)</button>
-                </div>
-                <button id="submitBtn" class="btn-primary">✅ تأكيد الإجابة</button>
-                <div id="resultMessage" class="message" style="display:none;"></div>
-            </div>
+  if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-            <div id="resultDiv" style="display:none;">
-                <div id="finalMessage" class="message"></div>
-            </div>
-        </div>
-    </div>
+  // 1. START SESSION
+  if (path === '/api/questions/start') {
+    const sessionId = 'S' + Math.floor(Math.random() * 90000 + 10000);
+    await db.put(`session:${sessionId}`, JSON.stringify({ status: 'waiting', created: Date.now() }));
+    return new Response(JSON.stringify({ success: true, session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
-    <script>
-        const API_BASE = 'https://driving-school-ad4.pages.dev/api';
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('session');
+  // 2. TRIGGER QUESTION
+  if (path.includes('/trigger')) {
+    const parts = path.split('/');
+    const sessionId = parts[4];
+    const body = await request.json();
+    await db.put(`session:${sessionId}`, JSON.stringify({
+      status: 'active',
+      correct_answer: body.correct_answer,
+      duration: body.duration,
+      start_time: Date.now()
+    }));
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
-        let pollInterval = null;
-        let currentAnswer = [];      // stores numbers as integers
-        let remainingSeconds = 0;
-        let timerInterval = null;
+  // 3. GET CURRENT QUESTION (Student Polling)
+  if (path === '/api/questions/current') {
+    const sessionId = url.searchParams.get('session');
+    const session = await db.get(`session:${sessionId}`);
+    return new Response(session || JSON.stringify({ status: 'waiting' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
-        window.onload = function() {
-            if (!sessionId) {
-                document.getElementById('resultDiv').style.display = 'block';
-                document.getElementById('finalMessage').textContent = '⚠️ لم يتم العثور على الجلسة.';
-                return;
-            }
-            checkStudentData();
-        };
+  // 4. SUBMIT ANSWER
+  if (path === '/api/questions/submit') {
+    const body = await request.json();
+    await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify(body));
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
-        function checkStudentData() {
-            if (!localStorage.getItem('studentName')) {
-                document.getElementById('loginDiv').style.display = 'block';
-            } else {
-                document.getElementById('waitingDiv').style.display = 'block';
-                pollQuestion();
-            }
-        }
+  // 5. GET RESULTS
+  if (path.includes('/results')) {
+    const parts = path.split('/');
+    const sessionId = parts[4];
+    const sessionData = await db.get(`session:${sessionId}`, { type: "json" });
+    const list = await db.list({ prefix: `answer:${sessionId}:` });
+    
+    const answers = [];
+    let correctCount = 0;
+    const keys = [];
+    for (const key of list.keys) {
+      keys.push(key.name);
+      const ans = await db.get(key.name, { type: "json" });
+      answers.push(ans);
+      if (ans.answer === sessionData.correct_answer) correctCount++;
+    }
 
-        async function saveStudentData() {
-            const name = document.getElementById('nameInput').value.trim();
-            const phone = document.getElementById('phoneInput').value.trim();
-            if (!name || !phone) return alert('يرجى تعبئة الحقول');
-            
-            localStorage.setItem('studentName', name);
-            localStorage.setItem('studentPhone', phone);
-            
-            document.getElementById('loginDiv').style.display = 'none';
-            document.getElementById('waitingDiv').style.display = 'block';
-            pollQuestion();
-        }
+    return new Response(JSON.stringify({
+      session: sessionData,
+      stats: { total: answers.length, correct: correctCount, wrong: answers.length - correctCount, answers: answers },
+      debug: { keys: keys }  // 🔥 added debug field
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
-        // ─── Answer Buttons ──────────────────────────────────────────
-        function addNumber(num) {
-            if (currentAnswer.length < 4) {   // maximum 4 digits (can be adjusted)
-                currentAnswer.push(num);
-                updateDisplay();
-            }
-        }
-
-        function removeLast() {
-            currentAnswer.pop();
-            updateDisplay();
-        }
-
-        function updateDisplay() {
-            const display = document.getElementById('displayAnswer');
-            if (currentAnswer.length === 0) {
-                display.textContent = '...';
-            } else {
-                display.textContent = currentAnswer.join(' , ');
-            }
-        }
-
-        // ─── Timer ─────────────────────────────────────────────────────
-        function startTimer() {
-            const display = document.getElementById('timerDisplay');
-            timerInterval = setInterval(() => {
-                remainingSeconds--;
-                display.textContent = remainingSeconds;
-                if (remainingSeconds <= 10) display.classList.add('warning');
-                if (remainingSeconds <= 0) {
-                    clearInterval(timerInterval);
-                    document.getElementById('submitBtn').disabled = true;
-                    document.getElementById('resultMessage').style.display = 'block';
-                    document.getElementById('resultMessage').className = 'message error';
-                    document.getElementById('resultMessage').textContent = '⏰ انتهى الوقت!';
-                }
-            }, 1000);
-        }
-
-        // ─── Poll for Question ──────────────────────────────────────
-        async function pollQuestion() {
-            pollInterval = setInterval(async () => {
-                try {
-                    const response = await fetch(`${API_BASE}/questions/current?session=${sessionId}`);
-                    if (!response.ok) {
-                        // keep waiting if not found
-                        return;
-                    }
-                    const data = await response.json();
-                    
-                    // session exists and is active
-                    if (data.status === 'active') {
-                        clearInterval(pollInterval);
-                        document.getElementById('waitingDiv').style.display = 'none';
-                        document.getElementById('questionDiv').style.display = 'block';
-                        remainingSeconds = data.duration || 60;
-                        document.getElementById('timerDisplay').textContent = remainingSeconds;
-                        startTimer();
-                    }
-                    // if status is 'waiting', keep polling
-                } catch (e) {
-                    // network error – silently retry
-                    console.warn('Polling error:', e);
-                }
-            }, 2000);
-        }
-
-        // ─── Submit Answer ───────────────────────────────────────────
-        document.getElementById('submitBtn').addEventListener('click', async function() {
-            if (currentAnswer.length === 0) {
-                alert('الرجاء اختيار رقم واحد على الأقل');
-                return;
-            }
-            this.disabled = true;
-            this.textContent = '⏳ جاري الإرسال...';
-
-            // Convert answer to comma‑separated string (e.g. "1,3,4")
-            const answerStr = currentAnswer.join(',');
-
-            try {
-                const response = await fetch(`${API_BASE}/questions/submit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        full_name: localStorage.getItem('studentName'),
-                        phone: localStorage.getItem('studentPhone'),
-                        answer: answerStr
-                    })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    clearInterval(timerInterval);
-                    document.getElementById('questionDiv').style.display = 'none';
-                    document.getElementById('resultDiv').style.display = 'block';
-                    document.getElementById('finalMessage').className = 'message success';
-                    document.getElementById('finalMessage').textContent = `✅ تم تأكيد إجابتك: ( ${answerStr} )`;
-                } else {
-                    alert('خطأ: ' + (result.error || 'حدث خطأ أثناء الإرسال'));
-                    this.disabled = false;
-                    this.textContent = '✅ تأكيد الإجابة';
-                }
-            } catch (error) {
-                alert('خطأ في الاتصال');
-                this.disabled = false;
-                this.textContent = '✅ تأكيد الإجابة';
-            }
-        });
-    </script>
-</body>
-</html>
+  return new Response('Not found', { status: 404 });
+}
