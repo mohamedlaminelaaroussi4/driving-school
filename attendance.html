@@ -35,7 +35,6 @@
         .validation-status { font-size: 0.9rem; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; text-align: center; }
         .validation-status.ok { background: #dcfce7; color: #166534; }
         .validation-status.fail { background: #fee2e2; color: #991b1b; }
-        .debug-log { font-size: 0.75rem; color: #666; background: #f1f5f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; display: none; }
     </style>
 </head>
 <body>
@@ -85,26 +84,17 @@
 
             <p class="session-id" id="sessionIdDisplay">رمز الجلسة: ---</p>
             <div class="data-notice">* سيتم تسجيل عنوان IP ومعلومات الجهاز لأغراض التحليل.</div>
-            <div class="debug-log" id="debugLog"></div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
-        (async function() {
-            // ─── Debug logger ──────────────────────────────────────────
-            function debug(msg) {
-                const el = document.getElementById('debugLog');
-                el.style.display = 'block';
-                el.textContent += msg + '\n';
-                console.log('[Att]', msg);
-            }
-
+        (function() {
             // ─── API base ──────────────────────────────────────────────
             const API_BASE = 'https://driving-school-ad4.pages.dev/api';
             const urlParams = new URLSearchParams(window.location.search);
             const sessionId = urlParams.get('session');
-            debug('Session ID: ' + (sessionId || 'none'));
+            console.log('[Att] Session ID:', sessionId);
 
             let deviceFingerprint = '';
 
@@ -114,23 +104,23 @@
                     const fp = await FingerprintJS.load();
                     const result = await fp.get();
                     deviceFingerprint = result.visitorId;
-                    debug('Fingerprint: ' + deviceFingerprint);
+                    console.log('[Att] Fingerprint:', deviceFingerprint);
                 } catch (e) {
                     deviceFingerprint = 'unavailable';
-                    debug('Fingerprint error: ' + e.message);
+                    console.warn('[Att] Fingerprint error:', e);
                 }
             }
-            await getFingerprint();
+            getFingerprint();
 
             // ─── IP address ────────────────────────────────────────────
             async function getIP() {
                 try {
                     const res = await fetch('https://api.ipify.org?format=json');
                     const data = await res.json();
-                    debug('IP: ' + data.ip);
+                    console.log('[Att] IP:', data.ip);
                     return data.ip;
                 } catch (e) {
-                    debug('IP error: ' + e.message);
+                    console.warn('[Att] IP error:', e);
                     return 'unknown';
                 }
             }
@@ -140,8 +130,7 @@
             if (!sessionId) {
                 document.getElementById('loginDiv').innerHTML = '<div class="message error">⚠️ رابط غير صالح. يرجى مسح الكود من الشاشة مجدداً.</div>';
                 document.getElementById('checkinBtn').disabled = true;
-                debug('Invalid session ID');
-                return; // now inside the async function, so this is legal
+                return;
             }
 
             // ─── DOM refs ──────────────────────────────────────────────
@@ -161,7 +150,6 @@
                 nameInput.classList.toggle('valid', isValid);
                 nameInput.classList.toggle('invalid', !isValid && val.length > 0);
                 nameError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
-                debug('Name: "' + val + '" valid=' + isValid);
                 return isValid;
             }
 
@@ -172,7 +160,6 @@
                 phoneInput.classList.toggle('valid', isValid);
                 phoneInput.classList.toggle('invalid', !isValid && val.length > 0);
                 phoneError.style.display = (!isValid && val.length > 0) ? 'block' : 'none';
-                debug('Phone: "' + val + '" valid=' + isValid);
                 return isValid;
             }
 
@@ -180,14 +167,12 @@
                 const nameOk = validateName();
                 const phoneOk = validatePhone();
                 const consentOk = consentCheck.checked;
-                debug('NameOk=' + nameOk + ', PhoneOk=' + phoneOk + ', ConsentOk=' + consentOk);
 
                 if (nameOk && phoneOk && consentOk) {
                     validationStatus.textContent = '✅ جميع الحقول صحيحة، يمكنك تسجيل الحضور';
                     validationStatus.className = 'validation-status ok';
                     checkinBtn.disabled = false;
                     checkinBtn.classList.add('ready');
-                    debug('Button ENABLED');
                 } else {
                     let msg = '⚠️ يرجى تصحيح: ';
                     const issues = [];
@@ -198,7 +183,6 @@
                     validationStatus.className = 'validation-status fail';
                     checkinBtn.disabled = true;
                     checkinBtn.classList.remove('ready');
-                    debug('Button DISABLED');
                 }
             }
 
@@ -241,7 +225,7 @@
                         })
                     });
                     const data = await response.json();
-                    debug('Server response: ' + JSON.stringify(data));
+                    console.log('[Att] Server response:', data);
                     if (data.success) {
                         document.getElementById('loginDiv').style.display = 'none';
                         document.getElementById('successDiv').style.display = 'block';
@@ -252,7 +236,7 @@
                     }
                 } catch (error) {
                     alert('خطأ في الاتصال: ' + error.message);
-                    debug('Submit error: ' + error.message);
+                    console.error('[Att] Submit error:', error);
                     this.disabled = false;
                     this.textContent = '✅ أنا هنا';
                 }
