@@ -13,7 +13,7 @@ export async function onRequest(context) {
   if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // QUESTIONS (KV storage)
+  // QUESTIONS (KV storage) – unchanged
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   // 1. START SESSION
@@ -47,7 +47,6 @@ export async function onRequest(context) {
   // 4. SUBMIT ANSWER – store all fields
   if (path === '/api/questions/submit') {
     const body = await request.json();
-    // Store all fields including IP, user agent, fingerprint
     await db.put(`answer:${body.session_id}:${body.phone}`, JSON.stringify({
       session_id: body.session_id,
       full_name: body.full_name,
@@ -76,7 +75,6 @@ export async function onRequest(context) {
       keys.push(key.name);
       const ans = await db.get(key.name, { type: "json" });
       answers.push(ans);
-      // Compare answer string (as stored)
       if (ans.answer === sessionData.correct_answer) correctCount++;
     }
 
@@ -88,28 +86,31 @@ export async function onRequest(context) {
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // ATTENDANCE (Forward to Flask for CSV storage)
+  // ATTENDANCE (Forward to Flask via Cloudflare Tunnel)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  // 6. ATTENDANCE START - Forward to Flask
+  // ⚠️ Replace this URL with your actual Cloudflare Tunnel URL
+  // (e.g., https://random-name.trycloudflare.com) – no trailing slash.
+  const FLASK_BASE = 'https://YOUR_TUNNEL_URL';
+
+  // 6. ATTENDANCE START
   if (path === '/api/attendance/start') {
-    const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/start';
+    const flaskUrl = `${FLASK_BASE}/api/attendance/start`;
     try {
       const response = await fetch(flaskUrl, { method: 'POST' });
       const data = await response.json();
       return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (error) {
-      // Fallback: Generate session locally if Flask is unreachable
+      // Fallback: generate session locally if Flask unreachable
       const sessionId = 'A' + Math.floor(Math.random() * 90000 + 10000);
       await db.put(`attendance:${sessionId}`, JSON.stringify({ status: 'active', created: Date.now(), attendees: [] }));
       return new Response(JSON.stringify({ session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
-  // 7. ATTENDANCE CHECKIN - Forward ALL fields to Flask
+  // 7. ATTENDANCE CHECKIN – forward all fields
   if (path === '/api/attendance/checkin') {
     const body = await request.json();
-    
     const session_id = body.session_id;
     const full_name = body.full_name || '';
     const phone = body.phone || '';
@@ -119,131 +120,127 @@ export async function onRequest(context) {
     const device_fingerprint = body.device_fingerprint || 'unknown';
 
     if (!session_id || !full_name || !phone) {
-      return new Response(JSON.stringify({ error: 'Missing fields' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: 'Missing fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/checkin';
+    const flaskUrl = `${FLASK_BASE}/api/attendance/checkin`;
     try {
       const response = await fetch(flaskUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: session_id,
-          full_name: full_name,
-          phone: phone,
-          student_id: student_id,
-          ip_address: ip_address,
-          user_agent: user_agent,
-          device_fingerprint: device_fingerprint
+          session_id, full_name, phone, student_id,
+          ip_address, user_agent, device_fingerprint
         })
       });
       const data = await response.json();
-      return new Response(JSON.stringify(data), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      // Fallback: Store in KV if Flask is unreachable
-      console.error('Flask unreachable, storing in KV:', error);
+      // Fallback: store in KV
       const sessionKey = `attendance:${session_id}`;
       const sessionData = await db.get(sessionKey, { type: 'json' });
       if (!sessionData) {
-        return new Response(JSON.stringify({ error: 'Session not found' }), { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      
+
+      // Duplicate check
       if (sessionData.attendees) {
         const exists = sessionData.attendees.some(a => a.phone === phone || (student_id && a.student_id === student_id));
         if (exists) {
-          return new Response(JSON.stringify({ error: 'مسجل بالفعل' }), { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          return new Response(JSON.stringify({ error: 'مسجل بالفعل' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
       }
-      
+
       const newAttendee = {
         id: 'A' + Math.floor(Math.random() * 90000 + 10000),
-        student_id: student_id,
-        full_name: full_name,
-        phone: phone,
+        student_id,
+        full_name,
+        phone,
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
         status: 'present',
-        ip_address: ip_address,
-        user_agent: user_agent,
-        device_fingerprint: device_fingerprint
+        ip_address,
+        user_agent,
+        device_fingerprint
       };
       sessionData.attendees = sessionData.attendees || [];
       sessionData.attendees.push(newAttendee);
       await db.put(sessionKey, JSON.stringify(sessionData));
-      return new Response(JSON.stringify({ success: true, attendance: newAttendee }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ success: true, attendance: newAttendee }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   }
 
-  // 8. ATTENDANCE SESSION (GET) - Forward to Flask
+  // 8. ATTENDANCE SESSION (GET)
   if (path.includes('/attendance/session/')) {
     const parts = path.split('/');
     const sessionId = parts[parts.length - 1];
-    const flaskUrl = `http://YOUR_VPS_IP:5000/api/attendance/session/${sessionId}`;
+    const flaskUrl = `${FLASK_BASE}/api/attendance/session/${sessionId}`;
     try {
       const response = await fetch(flaskUrl);
       const data = await response.json();
-      return new Response(JSON.stringify(data), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
+      // fallback to KV
       const sessionData = await db.get(`attendance:${sessionId}`, { type: 'json' });
       if (!sessionData) {
-        return new Response(JSON.stringify({ error: 'Session not found' }), { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      return new Response(JSON.stringify(sessionData.attendees || []), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify(sessionData.attendees || []), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   }
 
-  // 9. ATTENDANCE ALL - Forward to Flask
+  // 9. ATTENDANCE ALL
   if (path === '/api/attendance/all') {
-    const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/all';
+    const flaskUrl = `${FLASK_BASE}/api/attendance/all`;
     try {
       const response = await fetch(flaskUrl);
       const data = await response.json();
-      return new Response(JSON.stringify(data), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      return new Response(JSON.stringify([]), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   }
 
-  // 10. ATTENDANCE STATS - Forward to Flask
+  // 10. ATTENDANCE STATS
   if (path === '/api/attendance/stats') {
-    const flaskUrl = 'http://YOUR_VPS_IP:5000/api/attendance/stats';
+    const flaskUrl = `${FLASK_BASE}/api/attendance/stats`;
     try {
       const response = await fetch(flaskUrl);
       const data = await response.json();
-      return new Response(JSON.stringify(data), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      return new Response(JSON.stringify({ 
-        total_sessions: 0, 
-        total_checkins: 0, 
-        unique_students: 0, 
-        unique_phones: 0 
-      }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({
+        total_sessions: 0,
+        total_checkins: 0,
+        unique_students: 0,
+        unique_phones: 0
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   }
