@@ -70,6 +70,59 @@ export async function onRequest(context) {
       debug: { keys: keys }  // 🔥 added debug field
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+    // 6. ATTENDANCE START
+  if (path === '/api/attendance/start') {
+    const sessionId = 'A' + Math.floor(Math.random() * 90000 + 10000);
+    await db.put(`attendance:${sessionId}`, JSON.stringify({ status: 'active', created: Date.now(), attendees: [] }));
+    return new Response(JSON.stringify({ session_id: sessionId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // 7. ATTENDANCE CHECKIN
+  if (path === '/api/attendance/checkin') {
+    const body = await request.json();
+    const { session_id, full_name, phone, student_id } = body;
+    if (!session_id || !full_name || !phone) {
+      return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // Get existing attendees
+    const sessionKey = `attendance:${session_id}`;
+    const sessionData = await db.get(sessionKey, { type: 'json' });
+    if (!sessionData) {
+      return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // Prevent duplicate check-in (same phone or student_id)
+    if (sessionData.attendees) {
+      const exists = sessionData.attendees.some(a => a.phone === phone || (student_id && a.student_id === student_id));
+      if (exists) {
+        return new Response(JSON.stringify({ error: 'مسجل بالفعل' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+    // Add new attendee
+    const newAttendee = {
+      id: 'A' + Math.floor(Math.random() * 90000 + 10000),
+      student_id: student_id || '',
+      full_name,
+      phone,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      status: 'present'
+    };
+    sessionData.attendees = sessionData.attendees || [];
+    sessionData.attendees.push(newAttendee);
+    await db.put(sessionKey, JSON.stringify(sessionData));
+    return new Response(JSON.stringify({ success: true, attendance: newAttendee }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // 8. ATTENDANCE SESSION (GET)
+  if (path.includes('/attendance/session/')) {
+    const parts = path.split('/');
+    const sessionId = parts[parts.length - 1]; // last part
+    const sessionData = await db.get(`attendance:${sessionId}`, { type: 'json' });
+    if (!sessionData) {
+      return new Response(JSON.stringify({ error: 'Session not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // Return the attendees list
+    return new Response(JSON.stringify(sessionData.attendees || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 
   return new Response('Not found', { status: 404 });
 }
