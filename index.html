@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
     <title>السؤال المباشر</title>
     <style>
-        /* ─── Same styles as attendance ─── */
         body { background: #f5f7fa; font-family: 'Tajawal', system-ui, sans-serif; margin: 0; padding: 1rem; }
         .container { max-width: 600px; margin: 0 auto; }
         .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -13,7 +12,7 @@
 
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; color: #333; font-weight: bold; }
-        .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
+        .form-group input { width: 100%; padding: 0.8rem; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s, background-color 0.2s; }
         .form-group input.valid { border-color: #22c55e; background-color: #f0fdf4; }
         .form-group input.invalid { border-color: #ef4444; background-color: #fef2f2; }
         .form-group .hint { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; display: block; }
@@ -29,9 +28,9 @@
         .validation-status.ok { background: #dcfce7; color: #166534; }
         .validation-status.fail { background: #fee2e2; color: #991b1b; }
 
-        .btn-primary { width: 100%; padding: 1.2rem; background: #1e5f3a; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-primary:hover:not(:disabled) { background: #164d2e; }
-        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; background: #94a3b8; }
+        .btn-primary { width: 100%; padding: 1.2rem; background: #94a3b8; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-primary:hover:not(:disabled) { background: #1e5f3a; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; background: #94a3b8; }
         .btn-primary.ready { background: #22c55e; }
         .btn-primary.ready:hover { background: #16a34a; }
 
@@ -278,6 +277,7 @@
         phoneInput.addEventListener('input', updateUI);
         studentIdInput.addEventListener('input', updateUI);
         consentCheck.addEventListener('change', updateUI);
+        // Initial check to set correct state
         updateUI();
 
         // ─── Enter button ──────────────────────────────────────────────
