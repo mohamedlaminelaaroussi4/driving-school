@@ -107,11 +107,11 @@
                 <div class="timer" id="timerDisplay">--</div>
                 <div class="display-box" id="displayAnswer">...</div>
                 <div class="keypad">
-                    <button class="key-btn" onclick="addNumber(1)">1</button>
-                    <button class="key-btn" onclick="addNumber(2)">2</button>
-                    <button class="key-btn" onclick="addNumber(3)">3</button>
-                    <button class="key-btn" onclick="addNumber(4)">4</button>
-                    <button class="key-btn delete-btn" onclick="removeLast()">⌫ تراجع (مسح)</button>
+                    <button class="key-btn" onclick="window.addNumber(1)">1</button>
+                    <button class="key-btn" onclick="window.addNumber(2)">2</button>
+                    <button class="key-btn" onclick="window.addNumber(3)">3</button>
+                    <button class="key-btn" onclick="window.addNumber(4)">4</button>
+                    <button class="key-btn delete-btn" onclick="window.removeLast()">⌫ تراجع (مسح)</button>
                 </div>
                 <button id="submitBtn" class="btn-primary">✅ تأكيد الإجابة</button>
                 <div id="resultMessage" class="message" style="display:none;"></div>
@@ -127,6 +127,33 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script>
+        // ─── Global variables ──────────────────────────────────────────
+        let currentAnswer = [];
+        const displayAnswerEl = document.getElementById('displayAnswer');
+
+        // ─── Answer functions (exposed globally) ──────────────────────
+        window.addNumber = function(num) {
+            console.log('[Q] Adding number:', num);
+            if (currentAnswer.length < 4) {
+                currentAnswer.push(num);
+                currentAnswer.sort((a, b) => a - b);
+                displayAnswerEl.textContent = currentAnswer.join(' , ');
+                console.log('[Q] Current answer:', currentAnswer);
+            }
+        };
+
+        window.removeLast = function() {
+            console.log('[Q] Removing last number');
+            currentAnswer.pop();
+            if (currentAnswer.length === 0) {
+                displayAnswerEl.textContent = '...';
+            } else {
+                displayAnswerEl.textContent = currentAnswer.join(' , ');
+            }
+            console.log('[Q] Current answer:', currentAnswer);
+        };
+
+        // ─── Main app ──────────────────────────────────────────────────
         (function() {
             const API_BASE = 'https://driving-school-ad4.pages.dev/api';
             const urlParams = new URLSearchParams(window.location.search);
@@ -166,9 +193,6 @@
                 return;
             }
             document.getElementById('displaySessionId').textContent = sessionId;
-
-            // ─── DOM refs ──────────────────────────────────────────────────
-            const displayAnswerEl = document.getElementById('displayAnswer');
 
             // ─── Validation ──────────────────────────────────────────────
             const nameInput = document.getElementById('nameInput');
@@ -273,7 +297,6 @@
             let lastStartTime = null;
             let timerInterval = null;
             let remainingSeconds = 0;
-            let currentAnswer = [];
 
             function startPolling() {
                 if (pollInterval) clearInterval(pollInterval);
@@ -339,27 +362,6 @@
                 document.getElementById('resultMessage').style.display = 'none';
                 document.getElementById('submitBtn').disabled = false;
                 startTimer(duration);
-            }
-
-            // ─── Answer functions ──────────────────────────────────────────
-            function addNumber(num) {
-                if (currentAnswer.length < 4) {
-                    currentAnswer.push(num);
-                    currentAnswer.sort((a, b) => a - b);
-                    // Update display
-                    displayAnswerEl.textContent = currentAnswer.join(' , ');
-                    console.log('[Q] Current answer:', currentAnswer);
-                }
-            }
-
-            function removeLast() {
-                currentAnswer.pop();
-                if (currentAnswer.length === 0) {
-                    displayAnswerEl.textContent = '...';
-                } else {
-                    displayAnswerEl.textContent = currentAnswer.join(' , ');
-                }
-                console.log('[Q] Current answer:', currentAnswer);
             }
 
             // ─── Submit answer ─────────────────────────────────────────────
